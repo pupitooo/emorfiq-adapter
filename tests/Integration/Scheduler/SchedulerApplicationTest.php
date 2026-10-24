@@ -6,8 +6,10 @@ namespace Tests\Integration\Scheduler;
 
 use App\Scheduler\Infrastructure\Laravel\SchedulerApplication;
 use App\Task\Infrastructure\Symfony\SymfonyTaskResolver;
+use DateTimeImmutable;
 use Exception;
 use Illuminate\Console\Scheduling\CallbackEvent;
+use Illuminate\Console\Scheduling\EventMutex;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Container\Container as ContainerContract;
 use LogicException;
@@ -29,6 +31,11 @@ final readonly class SchedulerApplicationTest
         $this->callbacksResolveTasksThroughSymfony();
         $this->containersKeepSeparateBindings();
         $this->creationPreservesGlobalContainer();
+        $this->scheduleCreationRestoresGlobalContainer();
+        $this->scheduleFailureRestoresGlobalContainer();
+        $this->scheduleBuildsKeepSeparateEvents();
+        $this->rejectsOverlappingExecution();
+        $this->rejectsSingleServerExecution();
     }
 
     /**
@@ -105,5 +112,93 @@ final readonly class SchedulerApplicationTest
         if (Container::getInstance() !== $original) {
             throw new LogicException('Creating the scheduler context must not replace the global container.');
         }
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function scheduleCreationRestoresGlobalContainer(): void
+    {
+        $original = Container::getInstance();
+        $schedule = new SchedulerApplication()->createSchedule();
+        if ($schedule->events() !== [] || Container::getInstance() !== $original) {
+            throw new LogicException('Schedule creation must return an empty plan and restore the global container.');
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function scheduleFailureRestoresGlobalContainer(): void
+    {
+        $original = Container::getInstance();
+        $application = new SchedulerApplication();
+        $application->bind(EventMutex::class, static fn() => throw new LogicException('Mutex resolution failed.'));
+        try {
+            $application->createSchedule();
+        } catch (LogicException $exception) {
+            if ($exception->getMessage() !== 'Mutex resolution failed.' || Container::getInstance() !== $original) {
+                throw new LogicException('Schedule initialization must restore the global container on failure.');
+            }
+
+            return;
+        }
+
+        throw new LogicException('Schedule initialization must propagate mutex resolution failures.');
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function scheduleBuildsKeepSeparateEvents(): void
+    {
+        $application = new SchedulerApplication();
+        $first = $application->createSchedule();
+        $first->call(static fn() => null);
+        $second = $application->createSchedule();
+        if ($first === $second || $second->events() !== []) {
+            throw new LogicException('Each schedule build must start with a fresh event list.');
+        }
+    }
+
+    /**
+     * @throws Throwable
+     */
+    private function rejectsOverlappingExecution(): void
+    {
+        $application = new SchedulerApplication();
+        $event = $application->createSchedule()->call(static fn() => null)
+            ->name('overlap-test')->withoutOverlapping();
+        $this->assertNotImplemented(static fn() => $event->run($application));
+    }
+
+    /**
+     * @throws Throwable
+     */
+    private function rejectsSingleServerExecution(): void
+    {
+        $schedule = new SchedulerApplication()->createSchedule();
+        $event = $schedule->call(static fn() => null)->name('single-server-test')->onOneServer();
+        $this->assertNotImplemented(static fn() => $schedule->serverShouldRun($event, new DateTimeImmutable()));
+    }
+
+    /**
+     * @param callable(): mixed $operation
+     * @param-immediately-invoked-callable $operation
+     * @throws Throwable
+     */
+    private function assertNotImplemented(callable $operation): void
+    {
+        try {
+            $operation();
+        } catch (LogicException $exception) {
+            if ($exception->getMessage() !== 'Not Implemented') {
+                throw new LogicException('Locking must fail explicitly as not implemented.', previous: $exception);
+            }
+
+            return;
+        }
+
+        throw new LogicException('Unsupported locking must not silently succeed.');
     }
 }

@@ -8,9 +8,12 @@ use App\Scheduler\Contract\SchedulerConfiguration;
 use App\Scheduler\Domain\Configuration;
 use App\Scheduler\Domain\ScheduleDefinition;
 use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
+use App\Scheduler\Infrastructure\Laravel\SchedulerApplication;
 use App\Task\Execution\PingTask;
 use App\Task\Infrastructure\Symfony\SymfonyTaskResolver;
 use Exception;
+use Illuminate\Console\Scheduling\CallbackEvent;
+use Illuminate\Console\Scheduling\Schedule;
 use LogicException;
 use Override;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -26,6 +29,7 @@ final readonly class LaravelAdapterTest
     {
         $path = $this->temporaryFile();
         try {
+            $this->mapsDefinitionsWithoutResolvingTasks();
             $this->runsEveryConfiguredDefinition($path);
             $this->runsNothingForEmptyConfiguration();
             $this->rejectsUnregisteredTask();
@@ -33,6 +37,45 @@ final readonly class LaravelAdapterTest
             if (! unlink($path)) {
                 throw new LogicException('Unable to remove task execution log.');
             }
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function mapsDefinitionsWithoutResolvingTasks(): void
+    {
+        $configuration = $this->configuration([
+            new ScheduleDefinition('weekday', LoggingTask::class, " \t0 9 * * 1-5\n", 'Europe/Prague'),
+            new ScheduleDefinition('daily', PingTask::class, "\t@daily\n"),
+        ]);
+        $resolver = new SymfonyTaskResolver(new ContainerBuilder());
+        $adapter = new LaravelAdapter($resolver, $configuration, new SchedulerApplication());
+        $this->assertMappedEvents($adapter->createSchedule());
+        $this->assertMappedEvents($adapter->createSchedule());
+    }
+
+    private function assertMappedEvents(Schedule $schedule): void
+    {
+        $events = $schedule->events();
+        $weekday = $events[0] ?? null;
+        $daily = $events[1] ?? null;
+        if (count($events) !== 2) {
+            throw new LogicException('Each schedule build must contain one event per definition in order.');
+        }
+
+        if (
+            ! $weekday instanceof CallbackEvent || $weekday->description !== 'weekday'
+            || $weekday->expression !== '0 9 * * 1-5' || $weekday->timezone !== 'Europe/Prague'
+        ) {
+            throw new LogicException('Events must retain identifiers, trimmed cron expressions, and time zones.');
+        }
+
+        if (
+            ! $daily instanceof CallbackEvent || $daily->description !== 'daily'
+            || $daily->expression !== '@daily' || $daily->timezone !== 'UTC'
+        ) {
+            throw new LogicException('Events must support cron aliases and the default UTC time zone.');
         }
     }
 
@@ -47,7 +90,7 @@ final readonly class LaravelAdapterTest
             new ScheduleDefinition('ping-second', PingTask::class, '* * * * *'),
         ]);
         $resolver = new SymfonyTaskResolver(TaskServices::container($path));
-        new LaravelAdapter($resolver, $configuration)->run();
+        new LaravelAdapter($resolver, $configuration, new SchedulerApplication())->run();
 
         $this->assertLog($path);
     }
@@ -81,7 +124,7 @@ final readonly class LaravelAdapterTest
     private function runsNothingForEmptyConfiguration(): void
     {
         $resolver = new SymfonyTaskResolver(new ContainerBuilder());
-        new LaravelAdapter($resolver, $this->configuration([]))->run();
+        new LaravelAdapter($resolver, $this->configuration([]), new SchedulerApplication())->run();
     }
 
     /**
@@ -92,7 +135,7 @@ final readonly class LaravelAdapterTest
         $resolver = new SymfonyTaskResolver(new ContainerBuilder());
         $configuration = $this->configuration([new ScheduleDefinition('missing', LoggingTask::class, '* * * * *')]);
         try {
-            new LaravelAdapter($resolver, $configuration)->run();
+            new LaravelAdapter($resolver, $configuration, new SchedulerApplication())->run();
         } catch (LogicException $exception) {
             if ($exception->getMessage() !== 'Task is not registered: ' . LoggingTask::class) {
                 throw new LogicException('The adapter must propagate task resolution failures.', previous: $exception);

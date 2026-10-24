@@ -13,7 +13,11 @@ flowchart TD
     CLI --> Container["Compile Symfony service container"]
     Config --> Adapter["LaravelAdapter: run()"]
     Container --> Resolver["SymfonyTaskResolver"]
-    Adapter --> Resolver
+    Container --> Context["SchedulerApplication"]
+    Context --> Schedule["Illuminate Schedule"]
+    Adapter --> Schedule
+    Schedule --> Callback["Invoke configured callback"]
+    Callback --> Resolver
     Resolver --> Task["Fresh task instance"]
     Task --> Execution["Execute task: Task::run()"]
 ```
@@ -22,13 +26,17 @@ flowchart TD
    It starts a new PHP CLI process every minute.
 2. `bin/run.php` loads `config/services.php` and compiles a new Symfony container
    for that invocation. It also constructs `InMemorySchedulerConfiguration` with
-   `config/scheduler.json` and supplies both dependencies to the adapter.
+   `config/scheduler.json`, retrieves `SchedulerApplication` from the container,
+   and supplies the configuration, task resolver, and scheduler context to the adapter.
 3. The configuration provider reads and validates JSON once during construction.
    `getConfiguration()` returns the same immutable `Configuration` snapshot,
    containing a list of `ScheduleDefinition` objects.
-4. `LaravelAdapter` iterates the definitions in order, asks `TaskResolver` for
-   each task, and executes it by calling `Task::run()`. An empty task list runs
-   nothing. Each definition receives a fresh task instance.
+4. `LaravelAdapter` builds a fresh Illuminate `Schedule`, mapping each definition
+   to a callback event with its identifier, cron expression, and time zone.
+   Registration does not resolve tasks.
+5. `run()` currently executes every registered event. Inside each callback it
+   asks `TaskResolver` for the task and calls `Task::run()`. An empty task list
+   runs nothing. Each definition receives a fresh task instance.
 
 See [Task services](task-services.md) for registration and resolution failures,
 and [Scheduler JSON](configuration/format.md) for fields and validation.
@@ -47,14 +55,16 @@ and [Scheduler JSON](configuration/format.md) for fields and validation.
 
 ## Current implementation and pending work
 
-The [Laravel Scheduler bootstrap](laravel-scheduler.md) provides a separate
+The [Laravel Scheduler integration](laravel-scheduler.md) provides a separate
 Illuminate container and minimal scheduler context, registered in Symfony DI.
-Task construction remains in Symfony; the bootstrap is not yet consumed by
-`LaravelAdapter`.
+`LaravelAdapter` uses this context to build callback schedules and execute their
+events. Task construction remains in Symfony.
 
 `LaravelAdapter` is an execution prototype. It runs every configured definition
 once on every invocation, regardless of its cron expression or time zone.
-Translation to scheduler jobs, due-time evaluation, and mutex locking remain pending.
+Definitions are translated into Scheduler events, but due-time filtering and
+functional mutex locking remain pending. Mutex placeholders throw
+`LogicException('Not Implemented')` if a lock operation is requested.
 The container is compiled for each invocation; it is not cached between processes.
 
 `CrunzAdapter` implements the same adapter contract but currently throws
