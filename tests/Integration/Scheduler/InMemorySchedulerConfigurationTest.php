@@ -17,17 +17,17 @@ final readonly class InMemorySchedulerConfigurationTest
      */
     public function run(): void
     {
-        $this->loadsConfigurationFromAFile();
-        $this->keepsTheLoadedSnapshotWhenTheFileChanges();
-        $this->rejectsAMissingFile();
-        $this->rejectsADirectory();
-        $this->propagatesAParserFailure();
+        $this->loadsConfigurationFromFile();
+        $this->keepsLoadedSnapshotWhenFileChanges();
+        $this->rejectsMissingFile();
+        $this->rejectsDirectory();
+        $this->propagatesParserFailure();
     }
 
     /**
      * @throws ConfigurationException
      */
-    private function loadsConfigurationFromAFile(): void
+    private function loadsConfigurationFromFile(): void
     {
         $provider = new InMemorySchedulerConfiguration(__DIR__ . '/../../Fixtures/Scheduler/schedules.json');
         $configuration = $provider->getConfiguration();
@@ -44,7 +44,7 @@ final readonly class InMemorySchedulerConfigurationTest
     /**
      * @throws ConfigurationException
      */
-    private function keepsTheLoadedSnapshotWhenTheFileChanges(): void
+    private function keepsLoadedSnapshotWhenFileChanges(): void
     {
         $path = $this->temporaryFile();
         try {
@@ -65,14 +65,14 @@ final readonly class InMemorySchedulerConfigurationTest
         }
     }
 
-    private function rejectsAMissingFile(): void
+    private function rejectsMissingFile(): void
     {
         $path = $this->temporaryFile();
         $this->removeFile($path);
         $this->assertUnreadablePath($path);
     }
 
-    private function rejectsADirectory(): void
+    private function rejectsDirectory(): void
     {
         $this->assertUnreadablePath(__DIR__ . '/../../Fixtures/Scheduler');
     }
@@ -88,7 +88,7 @@ final readonly class InMemorySchedulerConfigurationTest
         }
     }
 
-    private function propagatesAParserFailure(): void
+    private function propagatesParserFailure(): void
     {
         $failure = $this->loadFailure(__DIR__ . '/../../Fixtures/Scheduler/invalid/malformed-json.json');
         if (! $failure->getPrevious() instanceof JsonException) {

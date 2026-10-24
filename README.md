@@ -9,19 +9,9 @@ The current foundation provides:
 - A framework-independent `Adapter` execution contract with `run(): void`.
 - A `LaravelAdapter` prototype that runs `PingTask` once for each configured definition on each invocation.
 - A `CrunzAdapter` placeholder that reports `Not Implemented`.
+- JSON configuration validated and mapped to immutable application objects through `nette/schema`.
 - A Docker environment using **PHP 8.5**, with separate execution and web services.
 - Static analysis and coding-standard checks for local development and CI.
-
-Application code is grouped into `Scheduler` and `Task` namespaces. The optional
-log viewer lives separately in `tools/log-viewer/` under `DevTools\LogViewer`,
-following the [application structure](docs/STRUCTURE_PROPOSAL.md).
-Unit tests cover `PingTask` logging through Monolog's `TestHandler` and JSON
-parser mapping, defaults, and validation. Focused integration tests cover the
-configuration provider's file loading, cached snapshot, and error propagation.
-
-The JSON task definitions live in [`config/scheduler.json`](config/scheduler.json).
-Their fields, required values, and defaults are described in the
-[scheduler configuration structure](docs/SCHEDULER_CONFIGURATION.md).
 
 ## Run locally
 

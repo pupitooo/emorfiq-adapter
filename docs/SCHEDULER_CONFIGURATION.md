@@ -24,6 +24,9 @@ Cron expressions have minute precision and contain no seconds field.
 The default time zone is part of this format and is independent of the server's
 or PHP's time zone. A task's `timezone` overrides that default for its own schedule.
 To use the default, omit the field; `null` and an empty string are not valid time zones.
+Unknown fields at the root or in a task definition are rejected. JSON objects
+and arrays retain their distinct meanings: `tasks` must be an array, and every
+task must be an object. Explicit `null` values are not empty lists or objects.
 
 ## Loading and typed configuration
 
@@ -40,9 +43,22 @@ Implementation code refers to version 1 through `Configuration::FORMAT_VERSION`
 and to the default time zone through `ScheduleDefinition::DEFAULT_TIMEZONE`.
 JSON definitions and fixture expectations keep the corresponding literal values.
 
+`JsonConfigurationParser` decodes JSON with PHP and delegates required fields,
+types, non-empty string assertions, defaults, and object construction to
+[`nette/schema`](https://doc.nette.org/en/schema). `castTo()` passes the validated
+values to the constructors of `Configuration` and `ScheduleDefinition`.
+The domain objects remain independent of Nette.
+
+Small JSON container checks preserve the distinction between objects, arrays,
+and null before Nette normalization. Unique schedule identifiers, five-field
+cron structure, and time zone validity are checked on the mapped configuration.
+
 Unreadable files, invalid JSON, unsupported versions, invalid field types,
 empty required strings, duplicate identifiers, invalid time zones, and cron
 expressions with other than five fields raise `ConfigurationException`.
+Schema failures preserve `Nette\Schema\ValidationException` as their previous
+exception and include the collected schema messages. Native JSON and time zone
+failures retain their original exception types as before.
 Full cron expression validation and resolving task classes into executable
 instances remain part of the later scheduler integration.
 
@@ -111,25 +127,31 @@ remains outside their scope.
 
 The [invalid fixtures](../tests/Fixtures/Scheduler/invalid) each isolate one
 configuration error. The [negative parser unit test](../tests/Unit/Scheduler/InvalidJsonConfigurationParserTest.php)
-lists the expected exception message next to each filename and is included in
-`tests/run.php`.
+lists the expected exception messages or structured schema errors next to each
+filename and is included in `tests/run.php`. For schema failures, it checks error
+codes and field paths rather than exact library message wording. It also checks
+aggregation of multiple schema errors into a single configuration failure.
 
 | Fixtures | Invalid input |
 | --- | --- |
 | `malformed-json.json` | Trailing comma makes the JSON syntax invalid. |
 | `root-is-array.json` | The document root is an array instead of an object. |
-| `missing-version.json`, `unsupported-version.json`, `version-is-string.json` | Version is missing, unsupported, or has the wrong type. |
-| `missing-tasks.json`, `tasks-is-object.json` | The task list is missing or is an object instead of an array. |
-| `task-is-string.json` | A task definition is a string instead of an object. |
+| `missing-version.json`, `unsupported-version.json`, `version-is-string.json`, `version-is-float.json` | Version is missing, unsupported, or has the wrong type. |
+| `missing-tasks.json`, `tasks-is-object.json`, `tasks-is-null.json` | The task list is missing or is an object or null instead of an array. |
+| `task-is-string.json`, `task-is-array.json`, `task-is-null.json` | A task definition is not a JSON object. |
 | `missing-id.json`, `missing-task.json`, `missing-cron.json` | A required task field is missing. |
 | `empty-id.json` | The identifier contains only whitespace. |
 | `task-is-number.json` | The task class name is a number instead of a string. |
 | `cron-has-seconds.json` | The cron expression has six fields instead of five. |
 | `invalid-timezone.json`, `null-timezone.json`, `empty-timezone.json` | The time zone is unknown, explicitly null, or empty. |
 | `duplicate-ids.json` | Two schedules use the same identifier. |
+| `unknown-root-field.json`, `unknown-task-field.json` | The root or a task contains an unrecognized field. |
+| `multiple-invalid-fields.json` | One task has both a missing identifier and a task class with the wrong type. |
 
-The parser throws `ConfigurationException` at the first detected error and
-does not return a partial configuration. The provider propagates that failure.
+The parser throws `ConfigurationException` and does not return a partial
+configuration. Schema validation can report multiple field errors together;
+JSON container and schedule rule checks stop at the first failure. The provider
+propagates the configuration failure.
 Malformed JSON preserves its original `JsonException` as the previous exception;
 an invalid time zone preserves its `DateInvalidTimeZoneException`. Both exception
 chains are checked in unit tests. Omitting `timezone` remains valid and uses UTC;

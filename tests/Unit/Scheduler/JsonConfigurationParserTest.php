@@ -26,7 +26,7 @@ final readonly class JsonConfigurationParserTest
         $this->weekdayMorningsUsePragueTime($configuration->tasks[1] ?? null);
         $this->quarterHoursCanBeRestrictedToWeekdayHours($configuration->tasks[2] ?? null);
         $this->selectedMonthDaysCanUseNewYorkTime($configuration->tasks[3] ?? null);
-        $this->anEmptyTaskListIsAllowed();
+        $this->emptyTaskListIsAllowed();
         $this->defaultTimezoneIsIndependentOfPhpSettings();
     }
 
@@ -88,7 +88,7 @@ final readonly class JsonConfigurationParserTest
     /**
      * @throws ConfigurationException
      */
-    private function anEmptyTaskListIsAllowed(): void
+    private function emptyTaskListIsAllowed(): void
     {
         $configuration = new JsonConfigurationParser()->parse(SchedulerFixtures::read('no-tasks.json'));
 

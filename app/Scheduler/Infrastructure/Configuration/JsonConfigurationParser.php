@@ -10,6 +10,12 @@ use App\Scheduler\Exception\ConfigurationException;
 use DateInvalidTimeZoneException;
 use DateTimeZone;
 use JsonException;
+use LogicException;
+use Nette\Schema\Elements\StringType;
+use Nette\Schema\Expect;
+use Nette\Schema\Processor;
+use Nette\Schema\Schema;
+use Nette\Schema\ValidationException;
 use stdClass;
 
 final readonly class JsonConfigurationParser
@@ -24,20 +30,11 @@ final readonly class JsonConfigurationParser
     public function parse(string $json): Configuration
     {
         $data = $this->decode($json);
-        $version = $data->version ?? null;
-        if ($version !== Configuration::FORMAT_VERSION) {
-            throw new ConfigurationException(sprintf(
-                'Configuration version must be the integer %d.',
-                Configuration::FORMAT_VERSION,
-            ));
-        }
+        $this->validateJsonContainers($data);
+        $configuration = $this->mapConfiguration($data);
+        $this->validateConfiguration($configuration);
 
-        $tasks = $data->tasks ?? null;
-        if (! is_array($tasks) || ! array_is_list($tasks)) {
-            throw new ConfigurationException('Configuration tasks must be a JSON array.');
-        }
-
-        return new Configuration($version, $this->parseTasks($tasks));
+        return $configuration;
     }
 
     /**
@@ -62,61 +59,90 @@ final readonly class JsonConfigurationParser
     }
 
     /**
-     * @param list<mixed> $tasks
-     * @return list<ScheduleDefinition>
      * @throws ConfigurationException
      */
-    private function parseTasks(array $tasks): array
+    private function validateJsonContainers(stdClass $data): void
     {
-        $definitions = [];
-        $identifiers = [];
-        foreach ($tasks as $index => $task) {
-            $definition = $this->parseTask($task, 'tasks[' . $index . ']');
-            if (isset($identifiers[$definition->id])) {
-                throw new ConfigurationException('Duplicate schedule identifier: ' . $definition->id);
-            }
-
-            $identifiers[$definition->id] = true;
-            $definitions[] = $definition;
+        // Nette normalizes objects and arrays, and may treat null as an empty structure or list.
+        if (! property_exists($data, 'tasks')) {
+            return;
         }
 
-        return $definitions;
+        $tasks = $data->tasks;
+        if (! is_array($tasks)) {
+            throw new ConfigurationException('Configuration tasks must be a JSON array.');
+        }
+
+        foreach ($tasks as $index => $task) {
+            if (! $task instanceof stdClass) {
+                throw new ConfigurationException('tasks[' . $index . '] must be a JSON object.');
+            }
+        }
     }
 
     /**
      * @throws ConfigurationException
      */
-    private function parseTask(mixed $task, string $path): ScheduleDefinition
+    private function mapConfiguration(stdClass $data): Configuration
     {
-        if (! $task instanceof stdClass) {
-            throw new ConfigurationException($path . ' must be a JSON object.');
+        try {
+            $configuration = new Processor()->process($this->configurationSchema(), $data);
+        } catch (ValidationException $exception) {
+            throw new ConfigurationException(
+                'Invalid scheduler configuration: ' . implode(' ', $exception->getMessages()),
+                previous: $exception,
+            );
         }
 
-        $cron = $this->readString($task->cron ?? null, $path . '.cron');
-        $this->validateCronFields($cron, $path);
-        $timezone = property_exists($task, 'timezone')
-            ? $this->readString($task->timezone, $path . '.timezone')
-            : ScheduleDefinition::DEFAULT_TIMEZONE;
-        $this->validateTimezone($timezone, $path);
+        if (! $configuration instanceof Configuration) {
+            throw new LogicException('The scheduler schema must map to Configuration.');
+        }
 
-        return new ScheduleDefinition(
-            id: $this->readString($task->id ?? null, $path . '.id'),
-            task: $this->readString($task->task ?? null, $path . '.task'),
-            cron: $cron,
-            timezone: $timezone,
+        return $configuration;
+    }
+
+    private function configurationSchema(): Schema
+    {
+        return Expect::structure([
+            'version' => Expect::anyOf(Configuration::FORMAT_VERSION)->required(),
+            'tasks' => Expect::listOf($this->taskSchema())->required(),
+        ])->castTo(Configuration::class);
+    }
+
+    private function taskSchema(): Schema
+    {
+        return Expect::structure([
+            'id' => $this->nonEmptyString()->required(),
+            'task' => $this->nonEmptyString()->required(),
+            'cron' => $this->nonEmptyString()->required(),
+            'timezone' => $this->nonEmptyString()->default(ScheduleDefinition::DEFAULT_TIMEZONE),
+        ])->castTo(ScheduleDefinition::class);
+    }
+
+    private function nonEmptyString(): StringType
+    {
+        return Expect::string()->assert(
+            static fn (string $value): bool => trim($value) !== '',
+            'Value must contain a non-whitespace character',
         );
     }
 
     /**
      * @throws ConfigurationException
      */
-    private function readString(mixed $value, string $path): string
+    private function validateConfiguration(Configuration $configuration): void
     {
-        if (! is_string($value) || trim($value) === '') {
-            throw new ConfigurationException($path . ' must be a non-empty string.');
-        }
+        $identifiers = [];
+        foreach ($configuration->tasks as $index => $definition) {
+            $path = 'tasks[' . $index . ']';
+            $this->validateCronFields($definition->cron, $path);
+            $this->validateTimezone($definition->timezone, $path);
+            if (isset($identifiers[$definition->id])) {
+                throw new ConfigurationException('Duplicate schedule identifier: ' . $definition->id);
+            }
 
-        return $value;
+            $identifiers[$definition->id] = true;
+        }
     }
 
     /**
