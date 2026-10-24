@@ -4,7 +4,10 @@
         {
             "id": "ping",
             "task": "App\\Task\\Execution\\PingTask",
-            "cron": "* * * * *"
+            "cron": "* * * * *",
+            "withoutOverlapping": false,
+            "overlapExpiresAfterMinutes": 60,
+            "onOneServer": false
         }
     ]
 }

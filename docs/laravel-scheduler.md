@@ -14,10 +14,15 @@ Registering events describes the plan; Laravel's `dueEvents()` selects which
 events are eligible at the current time. The adapter uses those results:
 
 ```php
+$startedAt = Date::now();
 $schedule = $this->createSchedule();
 $events = $schedule->dueEvents($this->application);
 foreach ($events as $event) {
     if (! $event->filtersPass($this->application)) {
+        continue;
+    }
+
+    if ($event->onOneServer && ! $schedule->serverShouldRun($event, $startedAt)) {
         continue;
     }
 
@@ -37,8 +42,8 @@ in configuration order. An empty configuration or a plan with no due events
 executes nothing.
 
 One invocation evaluates the current schedule and returns; cron provides the
-next invocation. It does not wait for future execution times or record completed
-time slots. Calling it again in the same minute may execute the same due events
+next invocation. It does not wait for future execution times. Without server
+coordination, calling it again in the same minute may execute the same due events
 again. See Laravel's [Running the Scheduler](https://laravel.com/docs/13.x/scheduling#running-the-scheduler)
 and [ScheduleRunCommand](https://github.com/illuminate/console/blob/13.x/Scheduling/ScheduleRunCommand.php)
 for the corresponding standard entry point and orchestration.
@@ -53,6 +58,9 @@ Each definition produces one callback event, preserving configuration order:
 | `cron` | Validated expression via `cron()`, passed unchanged. Supported aliases are retained. |
 | `timezone` | Event time zone via `timezone()`, including the configuration's UTC default. |
 | `task` | Class resolved through `TaskExecutor` inside the callback when the event runs. |
+| `withoutOverlapping` | When enabled, `withoutOverlapping(overlapExpiresAfterMinutes)` after naming the event. |
+| `overlapExpiresAfterMinutes` | Execution mutex expiration passed to `withoutOverlapping()`; defaults to `60` minutes (1 hour). |
+| `onOneServer` | When enabled, `onOneServer()` after naming the event; the runner checks `serverShouldRun()`. |
 
 Each call to `createSchedule()` returns a fresh schedule, so repeated builds
 do not accumulate events. The parser rejects invalid values, including
@@ -140,8 +148,12 @@ Every lock operation throws `LogicException('Not Implemented')`; implementing
 the lock behavior is deferred.
 
 Ordinary callback execution does not use these lock operations.
-`withoutOverlapping()` and single-server execution remain unsupported; no
-locking options have been added to JSON configuration or cache storage.
+JSON supports both locking flags and execution lock expiration. The adapter maps
+them to events and performs the single-server runner check. Protected due events
+fail explicitly through the placeholders until mutex storage is implemented.
+Building their schedule does not acquire locks. See
+[Concurrency](configuration/concurrency.md) for the complete configuration contract
+and the distinction between execution and scheduling locks.
 
 ## Verification
 
@@ -155,6 +167,12 @@ placeholders.
 `LaravelAdapterTest` verifies mapping of identifiers, cron expressions, aliases,
 and time zones without resolving tasks. Existing execution tests cover task
 order, empty configurations, and reporting of task resolution failures.
+
+`LaravelLockingTest` maps JSON lock options to actual Illuminate events and
+verifies explicit placeholder failures through the adapter. Injected recording
+mutexes cover denied and granted scheduling locks, due-event selection, overlap
+filters, acquisition races, and execution lock release after success or task
+failure. Skipped events never resolve tasks; ordinary events need no mutex.
 
 `DueEventsTest` freezes Laravel's clock and runs actual Symfony task services.
 It covers selection across consecutive minutes, Prague and New York time zones

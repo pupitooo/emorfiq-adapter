@@ -113,6 +113,10 @@ final readonly class JsonConfigurationParser
             'task' => Expect::string()->required(),
             'cron' => Expect::string()->required(),
             'timezone' => Expect::string()->default(ScheduleDefinition::DEFAULT_TIMEZONE),
+            'withoutOverlapping' => Expect::bool(false),
+            'overlapExpiresAfterMinutes' => Expect::int()
+                ->min(1)->default(ScheduleDefinition::DEFAULT_OVERLAP_EXPIRES_AFTER_MINUTES),
+            'onOneServer' => Expect::bool(false),
         ])->castTo(ScheduleDefinition::class);
     }
 

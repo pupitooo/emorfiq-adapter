@@ -1,0 +1,50 @@
+{
+    "version": 1,
+    "tasks": [
+        {
+            "id": "defaults",
+            "task": "App\\Task\\Execution\\PingTask",
+            "cron": "* * * * *"
+        },
+        {
+            "id": "overlap-default-expiry",
+            "task": "App\\Task\\Execution\\PingTask",
+            "cron": "* * * * *",
+            "withoutOverlapping": true
+        },
+        {
+            "id": "single-server",
+            "task": "App\\Task\\Execution\\PingTask",
+            "cron": "* * * * *",
+            "onOneServer": true
+        },
+        {
+            "id": "combined-custom-expiry",
+            "task": "App\\Task\\Execution\\PingTask",
+            "cron": "* * * * *",
+            "withoutOverlapping": true,
+            "overlapExpiresAfterMinutes": 30,
+            "onOneServer": true
+        },
+        {
+            "id": "explicit-disabled",
+            "task": "App\\Task\\Execution\\PingTask",
+            "cron": "* * * * *",
+            "withoutOverlapping": false,
+            "onOneServer": false
+        },
+        {
+            "id": "expiry-only",
+            "task": "App\\Task\\Execution\\PingTask",
+            "cron": "* * * * *",
+            "overlapExpiresAfterMinutes": 120
+        },
+        {
+            "id": "minimum-expiry",
+            "task": "App\\Task\\Execution\\PingTask",
+            "cron": "* * * * *",
+            "withoutOverlapping": true,
+            "overlapExpiresAfterMinutes": 1
+        }
+    ]
+}

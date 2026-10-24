@@ -123,6 +123,9 @@ final readonly class JsonConfigurationParserTest
             || $actual->task !== $expected->task
             || $actual->cron !== $expected->cron
             || $actual->timezone !== $expected->timezone
+            || $actual->withoutOverlapping !== $expected->withoutOverlapping
+            || $actual->overlapExpiresAfterMinutes !== $expected->overlapExpiresAfterMinutes
+            || $actual->onOneServer !== $expected->onOneServer
         ) {
             throw new LogicException('Schedule "' . $expected->id . '" must preserve all documented field values.');
         }

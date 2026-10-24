@@ -82,6 +82,22 @@ final readonly class InvalidJsonConfigurationParserTest
             'code' => Message::TypeMismatch,
             'path' => ['tasks', 0, 'timezone'],
         ],
+        'without-overlapping-is-string.json' => [
+            'code' => Message::TypeMismatch,
+            'path' => ['tasks', 0, 'withoutOverlapping'],
+        ],
+        'on-one-server-is-null.json' => [
+            'code' => Message::TypeMismatch,
+            'path' => ['tasks', 0, 'onOneServer'],
+        ],
+        'overlap-expiry-is-zero.json' => [
+            'code' => Message::ValueOutOfRange,
+            'path' => ['tasks', 0, 'overlapExpiresAfterMinutes'],
+        ],
+        'overlap-expiry-is-float.json' => [
+            'code' => Message::TypeMismatch,
+            'path' => ['tasks', 0, 'overlapExpiresAfterMinutes'],
+        ],
         'unknown-root-field.json' => [
             'code' => Message::UnexpectedItem,
             'path' => ['enabled'],
@@ -101,6 +117,7 @@ final readonly class InvalidJsonConfigurationParserTest
         $this->rejectsInvalidSchemaValues();
         $this->rejectsSurroundingWhitespace();
         $this->reportsMultipleSchemaErrors();
+        $this->reportsMultipleLockOptionErrors();
         $this->malformedJsonPreservesOriginalCause();
         $this->invalidTimezonePreservesOriginalCause();
     }
@@ -186,6 +203,23 @@ final readonly class InvalidJsonConfigurationParserTest
         $this->assertSchemaError($failure, [
             'code' => Message::TypeMismatch,
             'path' => ['tasks', 0, 'task'],
+        ]);
+    }
+
+    private function reportsMultipleLockOptionErrors(): void
+    {
+        $failure = $this->schemaFailure('multiple-invalid-lock-options.json');
+        $this->assertSchemaError($failure, [
+            'code' => Message::TypeMismatch,
+            'path' => ['tasks', 0, 'withoutOverlapping'],
+        ]);
+        $this->assertSchemaError($failure, [
+            'code' => Message::ValueOutOfRange,
+            'path' => ['tasks', 0, 'overlapExpiresAfterMinutes'],
+        ]);
+        $this->assertSchemaError($failure, [
+            'code' => Message::TypeMismatch,
+            'path' => ['tasks', 0, 'onOneServer'],
         ]);
     }
 

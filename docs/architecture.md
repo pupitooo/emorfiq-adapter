@@ -34,10 +34,12 @@ flowchart TD
    `getConfiguration()` returns the same immutable `Configuration` snapshot,
    containing a list of `ScheduleDefinition` objects.
 4. `LaravelAdapter` builds a fresh Illuminate `Schedule`, mapping each definition
-   to a callback event with its identifier, cron expression, and time zone.
+   to a callback event with its identifier, cron expression, time zone, and
+   [concurrency options](configuration/concurrency.md).
    Registration does not resolve tasks.
 5. `run()` calls Laravel's `dueEvents()` to select events for the current time,
-   then checks each event's `filtersPass()` result before executing it.
+   then checks each event's `filtersPass()` result and, when requested,
+   `serverShouldRun()` result before executing it.
    Laravel evaluates the cron expression in the event's time zone.
 6. Inside each selected callback, `TaskExecutor` asks `TaskResolver` for the task
    and calls `Task::run()` with lifecycle logging. Skipped definitions do not
@@ -76,6 +78,8 @@ reported task failures; infrastructure errors still abort immediately. See
 
 Functional mutex locking remains pending. Mutex placeholders throw
 `LogicException('Not Implemented')` if a lock operation is requested.
+JSON flags and their adapter mapping are implemented; protected due events fail
+explicitly until the placeholders are replaced.
 The container is compiled for each invocation; it is not cached between processes.
 
 `CrunzAdapter` implements the same adapter contract but currently throws

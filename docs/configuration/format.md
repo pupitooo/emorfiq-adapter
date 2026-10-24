@@ -57,8 +57,15 @@ Each element of `tasks` must be a JSON object:
 | `task` | string | Yes | Fully qualified PHP task class name, for example `App\Task\Execution\PingTask`. Write each backslash as `\\` inside a JSON string. |
 | `cron` | string | Yes | Five-field cron expression or a [supported alias](cron.md), for example `@daily`. |
 | `timezone` | string | No | PHP time zone identifier, for example `UTC` or `Europe/Prague`. Defaults to `UTC` when omitted. |
+| `withoutOverlapping` | boolean | No | Prevent overlapping runs. Defaults to `false`. |
+| `overlapExpiresAfterMinutes` | positive integer | No | Execution lock expiration in minutes. Defaults to `60` (1 hour); used when `withoutOverlapping` is enabled. |
+| `onOneServer` | boolean | No | Coordinate each occurrence across servers. Defaults to `false`. |
 
 The same task class can have multiple schedules, each with its own unique `id`.
+
+See [Concurrency](concurrency.md) for examples, lock semantics, and the current
+implementation status. Lock storage is pending; executing protected due events
+currently fails explicitly through the mutex placeholders.
 
 ### String validation
 
@@ -97,6 +104,8 @@ Configuration loading rejects:
 - Duplicate task identifiers.
 - Invalid cron expressions or unknown aliases; see [Cron syntax](cron.md).
 - Explicit `timezone` values that are not non-empty strings or valid PHP time zones.
+- Non-boolean `withoutOverlapping` or `onOneServer` values, including explicit `null`.
+- Non-integer or non-positive `overlapExpiresAfterMinutes` values, including explicit `null`.
 - Unknown fields at the document root or in a task definition.
 
 These failures raise `ConfigurationException`. Task class existence and

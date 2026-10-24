@@ -48,6 +48,7 @@ nav:
   - Configuration:
       - JSON format: configuration/format.md
       - Cron syntax: configuration/cron.md
+      - Concurrency: configuration/concurrency.md
       - Loading: configuration/loading.md
       - Test cases: configuration/tests.md
   - Development:
