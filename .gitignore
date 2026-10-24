@@ -2,3 +2,4 @@
 /.env
 /storage/**/*.log
 .DS_Store
+/build/

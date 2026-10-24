@@ -1,0 +1,36 @@
+site_name: Emorfiq Scheduler Adapter
+site_description: JSON scheduler configuration reference
+site_url: !ENV [DOCS_SITE_URL, 'https://pupitooo.github.io/emorfiq-adapter/']
+docs_dir: content
+site_dir: /tmp/emorfiq-docs-site
+strict: true
+theme:
+  name: material
+  language: en
+  font: false
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+plugins:
+  - search
+markdown_extensions:
+  - tables
+  - fenced_code
+  - toc:
+      permalink: true
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
+nav:
+  - Configuration:
+      - JSON structure: index.md
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/pupitooo/emorfiq-adapter
