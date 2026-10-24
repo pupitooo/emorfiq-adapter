@@ -4,6 +4,7 @@
     "type": "project",
     "require": {
         "php": "~8.5.0",
+        "dragonmantank/cron-expression": "^3.6",
         "monolog/monolog": "^3.0",
         "nette/schema": "^1.4",
         "nette/utils": "^4.1",

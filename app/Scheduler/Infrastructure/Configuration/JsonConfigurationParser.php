@@ -7,6 +7,7 @@ namespace App\Scheduler\Infrastructure\Configuration;
 use App\Scheduler\Domain\Configuration;
 use App\Scheduler\Domain\ScheduleDefinition;
 use App\Scheduler\Exception\ConfigurationException;
+use Cron\CronExpression;
 use DateInvalidTimeZoneException;
 use DateTimeZone;
 use JsonException;
@@ -20,8 +21,6 @@ use stdClass;
 
 final readonly class JsonConfigurationParser
 {
-    private const string CRON_FORMAT_PATTERN = '/^\S+(?:\s+\S+){4}$/D';
-
     /**
      * @throws ConfigurationException
      */
@@ -126,7 +125,7 @@ final readonly class JsonConfigurationParser
         foreach ($configuration->tasks as $index => $definition) {
             $path = 'tasks[' . $index . ']';
             $this->validateNonEmptyFields($definition, $path);
-            $this->validateCronFields($definition->cron, $path);
+            $this->validateCronExpression($definition->cron, $path);
             $this->validateTimezone($definition->timezone, $path);
             if (isset($identifiers[$definition->id])) {
                 throw new ConfigurationException('Duplicate schedule identifier: ' . $definition->id);
@@ -157,10 +156,13 @@ final readonly class JsonConfigurationParser
     /**
      * @throws ConfigurationException
      */
-    private function validateCronFields(string $cron, string $path): void
+    private function validateCronExpression(string $cron, string $path): void
     {
-        if (Strings::match(trim($cron), self::CRON_FORMAT_PATTERN) === null) {
-            throw new ConfigurationException($path . '.cron must contain exactly five fields.');
+        $expression = trim($cron);
+        if (! CronExpression::isValidExpression($expression)) {
+            throw new ConfigurationException(
+                $path . '.cron must be a valid five-field expression or supported cron alias.',
+            );
         }
     }
 

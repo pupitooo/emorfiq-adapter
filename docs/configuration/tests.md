@@ -55,6 +55,19 @@ checks the returned typed values. It also checks that the UTC default is
 independent of PHP's current time zone. Fixture reading is test setup;
 the provider is not involved in these scenarios.
 
+`CronConfigurationParserTest` adds valid numeric boundaries, named months and
+weekdays, and mixed whitespace. It rejects empty and Unicode-whitespace-only
+expressions, too few or too many fields, out-of-range values, invalid tokens,
+steps, ranges, and lists. It accepts all seven built-in aliases, including
+aliases with surrounding whitespace or uppercase letters, and preserves their
+original values. Extended expressions cover `L`, `W`, `LW`, `#`, and `?`.
+Unknown aliases (including `@reboot`) and malformed aliases are rejected.
+These tests validate syntax and stored values; they do not evaluate run dates.
+The existing empty-cron and six-field fixtures remain covered.
+Missing `cron` keys produce a required-field schema error. Empty strings and
+ASCII- or Unicode-whitespace-only cron values produce a non-empty field error;
+non-empty expressions with invalid syntax produce a cron syntax error.
+
 The [provider integration test](https://github.com/pupitooo/emorfiq-adapter/blob/main/tests/Integration/Scheduler/InMemorySchedulerConfigurationTest.php)
 covers loading an actual file, retaining the original configuration after the
 source file changes, rejecting missing files and directories, and propagating

@@ -28,19 +28,28 @@ The domain objects remain independent of Nette.
 
 Small JSON container checks preserve the distinction between objects, arrays,
 and null before Nette normalization. Non-empty fields, unique schedule
-identifiers, five-field cron structure, and time zone validity are checked on
+identifiers, cron expressions, and time zone validity are checked on
 the mapped configuration. Empty-field validation uses `Nette\Utils\Strings::trim()`,
 including its Unicode whitespace support, without changing the stored values.
+
+Cron values first pass the shared non-empty field check, including Unicode
+whitespace. Missing keys are reported by the required-field schema; empty or
+whitespace-only values produce a non-empty field error. Non-empty cron values
+then pass field-count, syntax, range, and alias validation through
+`dragonmantank/cron-expression`. See [Cron syntax](cron.md) for accepted forms.
+There is no separate cron regular expression or alias list. Cron syntax
+validation trims surrounding ASCII whitespace locally without changing the
+stored value.
 
 ## Failures and alternative providers
 
 Unreadable files, invalid JSON, unsupported versions, invalid field types,
 empty required strings, duplicate identifiers, invalid time zones, and cron
-expressions with other than five fields raise `ConfigurationException`.
+expressions with invalid syntax, ranges, field counts, or unknown aliases raise
+`ConfigurationException`.
 Schema failures preserve `Nette\Schema\ValidationException` as their previous
 exception and include the collected schema messages. Native JSON and time zone
 failures retain their original exception types as before.
-Full cron expression validation remains part of the later scheduler integration.
 Task instances are resolved separately through [Task services](../task-services.md).
 
 The database provider exposes the same method but currently throws

@@ -55,7 +55,7 @@ Each element of `tasks` must be a JSON object:
 | --- | --- | --- | --- |
 | `id` | string | Yes | Non-empty schedule identifier, unique within `tasks`. |
 | `task` | string | Yes | Fully qualified PHP task class name, for example `App\Task\Execution\PingTask`. Write each backslash as `\\` inside a JSON string. |
-| `cron` | string | Yes | Five-field cron expression: minute, hour, day of month, month, day of week. |
+| `cron` | string | Yes | Five-field cron expression or a [supported alias](cron.md), for example `@daily`. |
 | `timezone` | string | No | PHP time zone identifier, for example `UTC` or `Europe/Prague`. Defaults to `UTC` when omitted. |
 
 The same task class can have multiple schedules, each with its own unique `id`.
@@ -63,23 +63,9 @@ Required strings cannot be empty or contain only whitespace.
 
 ### Cron expression
 
-The five fields have minute precision; there is no seconds field:
-
-```text
-minute  hour  day-of-month  month  day-of-week
-   *      *        *          *        *
-```
-
-| Expression | Intended schedule |
-| --- | --- |
-| `* * * * *` | Every minute. |
-| `*/5 * * * *` | Every five minutes. |
-| `0 9 * * *` | Daily at 09:00 in the task's time zone. |
-
-The configuration parser checks that the expression has exactly five
-whitespace-separated fields. Full validation of cron syntax and ranges belongs
-to the scheduler integration. Do not use six-field expressions or shortcuts
-such as `@daily`.
+Use a valid five-field expression or a supported alias such as `@daily`.
+See [Cron syntax](cron.md) for field order, aliases, extended expressions,
+and validation details.
 
 ### Time zone
 
@@ -101,7 +87,7 @@ Configuration loading rejects:
 - A task entry other than an object.
 - Missing, non-string, empty, or whitespace-only `id`, `task`, or `cron` values.
 - Duplicate task identifiers.
-- Cron expressions with other than five fields.
+- Invalid cron expressions or unknown aliases; see [Cron syntax](cron.md).
 - Explicit `timezone` values that are not non-empty strings or valid PHP time zones.
 - Unknown fields at the document root or in a task definition.
 

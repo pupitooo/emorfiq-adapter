@@ -45,6 +45,7 @@ nav:
       - Task services: task-services.md
   - Configuration:
       - JSON format: configuration/format.md
+      - Cron syntax: configuration/cron.md
       - Loading: configuration/loading.md
       - Test cases: configuration/tests.md
   - Development:
