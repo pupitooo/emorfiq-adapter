@@ -4,6 +4,8 @@ A PHP foundation for integrating task schedulers through application-owned
 interfaces, so scheduling libraries can change without coupling application code
 to their types.
 
+Source code: **[GitHub repository](https://github.com/pupitooo/emorfiq-adapter)**.
+
 ## Run locally
 
 Requires Docker with Compose v2+ and Make. PHP 8.5 and Composer run inside Docker.
