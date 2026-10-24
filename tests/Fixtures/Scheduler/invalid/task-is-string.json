@@ -1,4 +1,4 @@
 {
     "version": 1,
-    "tasks": ["App\\Task\\PingTask"]
+    "tasks": ["App\\Task\\Execution\\PingTask"]
 }

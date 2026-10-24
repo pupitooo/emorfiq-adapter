@@ -3,7 +3,7 @@
     "tasks": [
         {
             "id": " \t\n\r\u0000\u000b ",
-            "task": "App\\Task\\PingTask",
+            "task": "App\\Task\\Execution\\PingTask",
             "cron": "* * * * *"
         }
     ]

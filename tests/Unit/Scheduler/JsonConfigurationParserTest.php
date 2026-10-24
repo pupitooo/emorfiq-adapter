@@ -8,7 +8,7 @@ use App\Scheduler\Domain\Configuration;
 use App\Scheduler\Domain\ScheduleDefinition;
 use App\Scheduler\Exception\ConfigurationException;
 use App\Scheduler\Infrastructure\Configuration\JsonConfigurationParser;
-use App\Task\PingTask;
+use App\Task\Execution\PingTask;
 use LogicException;
 use Tests\Support\SchedulerFixtures;
 

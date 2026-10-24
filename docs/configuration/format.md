@@ -11,12 +11,12 @@ to the application and is independent of the scheduling library.
     "tasks": [
         {
             "id": "ping",
-            "task": "App\\Task\\PingTask",
+            "task": "App\\Task\\Execution\\PingTask",
             "cron": "* * * * *"
         },
         {
             "id": "ping-morning",
-            "task": "App\\Task\\PingTask",
+            "task": "App\\Task\\Execution\\PingTask",
             "cron": "0 9 * * *",
             "timezone": "Europe/Prague"
         }
@@ -54,7 +54,7 @@ Each element of `tasks` must be a JSON object:
 | Field | JSON type | Required | Meaning |
 | --- | --- | --- | --- |
 | `id` | string | Yes | Non-empty schedule identifier, unique within `tasks`. |
-| `task` | string | Yes | Fully qualified PHP task class name, for example `App\Task\PingTask`. Write each backslash as `\\` inside a JSON string. |
+| `task` | string | Yes | Fully qualified PHP task class name, for example `App\Task\Execution\PingTask`. Write each backslash as `\\` inside a JSON string. |
 | `cron` | string | Yes | Five-field cron expression: minute, hour, day of month, month, day of week. |
 | `timezone` | string | No | PHP time zone identifier, for example `UTC` or `Europe/Prague`. Defaults to `UTC` when omitted. |
 
@@ -107,3 +107,21 @@ Configuration loading rejects:
 
 These failures raise `ConfigurationException`. Task class existence and
 instantiation are not checked by the JSON parser.
+
+## Task registration
+
+Each `task` value must match a registered service implementing
+`App\Task\Contract\Task`. Concrete tasks in `app/Task/Execution/` are
+registered automatically. JSON defines the schedule; PHP service configuration
+provides constructor dependencies. See [Task services](../task-services.md) for
+registration, autowiring, instance lifetimes, and resolution failures.
+
+The current adapter runs every configured definition once per invocation;
+see [Architecture](../architecture.md#current-implementation-and-pending-work)
+for scheduling limitations.
+
+## Implementation and tests
+
+See [Configuration loading](loading.md) for typed objects, cached
+snapshots, parser behavior, and exception chains. [Configuration tests](tests.md)
+describes valid and invalid fixtures and the coverage of each test suite.
