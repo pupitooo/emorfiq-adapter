@@ -21,8 +21,6 @@ use stdClass;
 
 final readonly class JsonConfigurationParser
 {
-    private const string CRON_ALIAS_PREFIX = '@';
-
     /**
      * @throws ConfigurationException
      */
@@ -160,12 +158,10 @@ final readonly class JsonConfigurationParser
     private function validateCronExpression(string $cron, string $path): void
     {
         $expression = trim($cron);
-        // The library accepts aliases; our configuration format requires five explicit fields.
-        if (
-            str_starts_with($expression, self::CRON_ALIAS_PREFIX)
-            || ! CronExpression::isValidExpression($expression)
-        ) {
-            throw new ConfigurationException($path . '.cron must be a valid five-field expression without aliases.');
+        if (! CronExpression::isValidExpression($expression)) {
+            throw new ConfigurationException(
+                $path . '.cron must be a valid five-field expression or supported cron alias.',
+            );
         }
     }
 

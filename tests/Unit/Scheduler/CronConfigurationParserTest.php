@@ -7,12 +7,28 @@ namespace Tests\Unit\Scheduler;
 use App\Scheduler\Exception\ConfigurationException;
 use App\Scheduler\Infrastructure\Configuration\JsonConfigurationParser;
 use App\Task\Execution\PingTask;
+use Cron\CronExpression;
 use JsonException;
 use LogicException;
 
 final readonly class CronConfigurationParserTest
 {
     private const array VALID_EXPRESSIONS = [
+        '@yearly',
+        '@annually',
+        '@monthly',
+        '@weekly',
+        '@daily',
+        '@midnight',
+        '@hourly',
+        " \t@DAILY\n",
+        '@Monthly',
+        '0 0 L * *',
+        '0 9 15W * *',
+        '0 9 LW * *',
+        '0 9 * * 1#2',
+        '0 9 * * 5L',
+        '0 9 ? * MON',
         '0 0 1 1 0',
         '59 23 31 12 7',
         '0 9 * JAN,MAR MON-FRI',
@@ -20,6 +36,12 @@ final readonly class CronConfigurationParserTest
     ];
 
     private const array INVALID_EXPRESSIONS = [
+        '@reboot',
+        '@unknown',
+        '@daily extra',
+        '@daily * * * *',
+        '@ daily',
+        '* * * * * *',
         '',
         "\u{00A0}\u{2003}",
         '* * * *',
@@ -37,14 +59,6 @@ final readonly class CronConfigurationParserTest
         '*/0 * * * *',
         '0-60 * * * *',
         '0,60 * * * *',
-        '@yearly',
-        '@annually',
-        '@monthly',
-        '@weekly',
-        '@daily',
-        '@midnight',
-        '@hourly',
-        " \t@DAILY\n",
     ];
 
     /**
@@ -54,7 +68,26 @@ final readonly class CronConfigurationParserTest
     public function run(): void
     {
         $this->acceptsValidCronExpressions();
+        $this->acceptsRegisteredCronAlias();
         $this->rejectsInvalidCronExpressions();
+    }
+
+    /**
+     * @throws ConfigurationException
+     * @throws JsonException
+     */
+    private function acceptsRegisteredCronAlias(): void
+    {
+        CronExpression::registerAlias('@adapter_test_daily', '0 0 * * *');
+        try {
+            $json = $this->configurationJson('@adapter_test_daily');
+            $configuration = new JsonConfigurationParser()->parse($json);
+            if (($configuration->tasks[0] ?? null)?->cron !== '@adapter_test_daily') {
+                throw new LogicException('Aliases registered with the library must retain their original values.');
+            }
+        } finally {
+            CronExpression::unregisterAlias('@adapter_test_daily');
+        }
     }
 
     /**
@@ -91,7 +124,10 @@ final readonly class CronConfigurationParserTest
         try {
             new JsonConfigurationParser()->parse($json);
         } catch (ConfigurationException $exception) {
-            if ($exception->getMessage() !== 'tasks[0].cron must be a valid five-field expression without aliases.') {
+            if (
+                $exception->getMessage()
+                !== 'tasks[0].cron must be a valid five-field expression or supported cron alias.'
+            ) {
                 throw new LogicException('Invalid cron expressions must identify their field.', previous: $exception);
             }
 

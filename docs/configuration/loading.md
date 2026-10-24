@@ -33,16 +33,16 @@ the mapped configuration. Empty-field validation uses `Nette\Utils\Strings::trim
 including its Unicode whitespace support, without changing the stored values.
 
 Cron validation delegates empty expressions, field counts, syntax, and ranges
-to `dragonmantank/cron-expression`. The parser additionally rejects aliases such
-as `@daily` to keep the five-field configuration format. There is no separate
-cron regular expression or non-empty cron check. Validation trims surrounding
-whitespace locally without changing the stored cron value.
+to `dragonmantank/cron-expression`, including its supported aliases such as
+`@daily`. See [Cron syntax](cron.md) for accepted forms. There is no separate
+cron regular expression, alias list, or non-empty cron check. Validation trims
+surrounding whitespace locally without changing the stored cron value.
 
 ## Failures and alternative providers
 
 Unreadable files, invalid JSON, unsupported versions, invalid field types,
 empty required strings, duplicate identifiers, invalid time zones, and cron
-expressions with invalid syntax, ranges, field counts, or aliases raise
+expressions with invalid syntax, ranges, field counts, or unknown aliases raise
 `ConfigurationException`.
 Schema failures preserve `Nette\Schema\ValidationException` as their previous
 exception and include the collected schema messages. Native JSON and time zone
