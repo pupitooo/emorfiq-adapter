@@ -22,8 +22,6 @@ final readonly class JsonConfigurationParser
 {
     private const string CRON_FORMAT_PATTERN = '/^\S+(?:\s+\S+){4}$/D';
 
-    private const int REGEX_MATCH_FOUND = 1;
-
     /**
      * @throws ConfigurationException
      */
@@ -161,7 +159,7 @@ final readonly class JsonConfigurationParser
      */
     private function validateCronFields(string $cron, string $path): void
     {
-        if (preg_match(self::CRON_FORMAT_PATTERN, trim($cron)) !== self::REGEX_MATCH_FOUND) {
+        if (Strings::match(trim($cron), self::CRON_FORMAT_PATTERN) === null) {
             throw new ConfigurationException($path . '.cron must contain exactly five fields.');
         }
     }
