@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Integration\Scheduler;
 
-use App\Scheduler\Contract\SchedulerConfiguration;
-use App\Scheduler\Domain\Configuration;
 use App\Scheduler\Domain\ScheduleDefinition;
 use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
 use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
@@ -15,9 +13,9 @@ use Exception;
 use Illuminate\Console\Scheduling\CallbackEvent;
 use Illuminate\Console\Scheduling\Schedule;
 use LogicException;
-use Override;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Tests\Fixtures\Task\LoggingTask;
+use Tests\Support\SchedulerFixtures;
 use Tests\Support\TaskServices;
 
 final readonly class LaravelAdapterTest
@@ -30,7 +28,7 @@ final readonly class LaravelAdapterTest
         $path = $this->temporaryFile();
         try {
             $this->mapsDefinitionsWithoutResolvingTasks();
-            $this->runsEveryConfiguredDefinition($path);
+            $this->runsEveryMinuteDefinitions($path);
             $this->runsNothingForEmptyConfiguration();
             $this->rejectsUnregisteredTask();
         } finally {
@@ -45,7 +43,7 @@ final readonly class LaravelAdapterTest
      */
     private function mapsDefinitionsWithoutResolvingTasks(): void
     {
-        $configuration = $this->configuration([
+        $configuration = SchedulerFixtures::configuration([
             new ScheduleDefinition('weekday', LoggingTask::class, '0 9 * * 1-5', 'Europe/Prague'),
             new ScheduleDefinition('daily', PingTask::class, '@daily'),
         ]);
@@ -82,9 +80,9 @@ final readonly class LaravelAdapterTest
     /**
      * @throws Exception
      */
-    private function runsEveryConfiguredDefinition(string $path): void
+    private function runsEveryMinuteDefinitions(string $path): void
     {
-        $configuration = $this->configuration([
+        $configuration = SchedulerFixtures::configuration([
             new ScheduleDefinition('ping-first', PingTask::class, '* * * * *'),
             new ScheduleDefinition('fixture', LoggingTask::class, '* * * * *'),
             new ScheduleDefinition('ping-second', PingTask::class, '* * * * *'),
@@ -124,7 +122,7 @@ final readonly class LaravelAdapterTest
     private function runsNothingForEmptyConfiguration(): void
     {
         $resolver = new SymfonyTaskResolver(new ContainerBuilder());
-        new LaravelAdapter($resolver, $this->configuration([]), new SchedulerApplication())->run();
+        new LaravelAdapter($resolver, SchedulerFixtures::configuration([]), new SchedulerApplication())->run();
     }
 
     /**
@@ -133,7 +131,9 @@ final readonly class LaravelAdapterTest
     private function rejectsUnregisteredTask(): void
     {
         $resolver = new SymfonyTaskResolver(new ContainerBuilder());
-        $configuration = $this->configuration([new ScheduleDefinition('missing', LoggingTask::class, '* * * * *')]);
+        $configuration = SchedulerFixtures::configuration([
+            new ScheduleDefinition('missing', LoggingTask::class, '* * * * *'),
+        ]);
         try {
             new LaravelAdapter($resolver, $configuration, new SchedulerApplication())->run();
         } catch (LogicException $exception) {
@@ -145,27 +145,6 @@ final readonly class LaravelAdapterTest
         }
 
         throw new LogicException('The adapter must reject tasks without registered services.');
-    }
-
-    /**
-     * @param list<ScheduleDefinition> $definitions
-     */
-    private function configuration(array $definitions): SchedulerConfiguration
-    {
-        return new class(new Configuration(1, $definitions)) implements SchedulerConfiguration {
-            public function __construct(
-                private readonly Configuration $configuration,
-            ) {}
-
-            /**
-             * @throws void
-             */
-            #[Override]
-            public function getConfiguration(): Configuration
-            {
-                return $this->configuration;
-            }
-        };
     }
 
     private function temporaryFile(): string

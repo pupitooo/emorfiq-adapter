@@ -42,18 +42,19 @@ flowchart TD
     CLI --> Container["Compile Symfony service container"]
     Config --> Adapter["LaravelAdapter: run()"]
     Container --> Resolver["SymfonyTaskResolver"]
-    Adapter --> Resolver
+    Adapter --> Scheduler["Laravel Scheduler: select due events"]
+    Scheduler --> Resolver
     Resolver --> Task["Fresh task instance"]
     Task --> Execution["Execute task: Task::run()"]
 ```
 
 Cron invokes `bin/run.php`, which loads JSON schedules and compiles the Symfony
-service container. `LaravelAdapter` resolves tasks through the application-owned
-`TaskResolver` contract and executes each task by calling `Task::run()`.
+service container. `LaravelAdapter` asks Laravel Scheduler to select events due
+under their cron expressions and time zones. It resolves the selected tasks
+through the application-owned `TaskResolver` contract and calls `Task::run()`.
 The service container supplies its constructor dependencies.
 
-The current prototype runs every configured definition once per invocation.
-Cron/time zone evaluation, mutex locking, and Crunz integration remain pending.
+Mutex locking and Crunz integration remain pending.
 
 | Topic | Documentation |
 | --- | --- |

@@ -9,7 +9,9 @@ use App\Scheduler\Contract\SchedulerConfiguration;
 use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use App\Task\Contract\TaskResolver;
 use Exception;
+use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Collection;
 use Override;
 
 final readonly class LaravelAdapter implements Adapter
@@ -26,8 +28,16 @@ final readonly class LaravelAdapter implements Adapter
     #[Override]
     public function run(): void
     {
-        // Due-time filtering will be added in the next integration step.
-        foreach ($this->createSchedule()->events() as $event) {
+        $schedule = $this->createSchedule();
+        /** @var Collection<int, Event> $events */
+        // @phpstan-ignore argument.type (The runtime provides the application methods used by Scheduler.)
+        $events = $schedule->dueEvents($this->application);
+        foreach ($events as $event) {
+            // @phpstan-ignore argument.type (Event filters require only the Illuminate container.)
+            if (! $event->filtersPass($this->application)) {
+                continue;
+            }
+
             $event->run($this->application);
         }
     }

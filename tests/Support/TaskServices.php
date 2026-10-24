@@ -10,6 +10,7 @@ use Psr\Log\LoggerInterface;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
+use Tests\Fixtures\Task\FailingTask;
 use Tests\Fixtures\Task\LoggingTask;
 
 final readonly class TaskServices
@@ -28,6 +29,7 @@ final readonly class TaskServices
             ->setAutowired(true)
             ->setShared(false)
             ->setPublic(true);
+        $container->register(FailingTask::class, FailingTask::class)->setShared(false)->setPublic(true);
         $container->compile();
 
         return $container;

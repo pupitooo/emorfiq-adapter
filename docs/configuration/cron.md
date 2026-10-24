@@ -72,10 +72,9 @@ For non-empty values, the parser uses `CronExpression::isValidExpression()` to v
 syntax, ranges, and aliases during configuration loading. It validates the
 original value without trimming or transforming it. Invalid expressions raise
 `ConfigurationException` naming the cron field. Syntax validation does not guarantee that an expression has a matching
-calendar date; due-time evaluation remains part of the scheduler integration.
+calendar date. Laravel Scheduler evaluates whether an expression is due during
+the [execution cycle](../laravel-scheduler.md#execution-cycle).
 
 Six-field expressions (seconds or a year), crontab command columns, and
 environment assignments are outside this format.
 [Crunz rejects expressions with more than five fields](https://github.com/crunzphp/crunz/blob/master/src/Event.php).
-The current adapter runs each definition once per invocation regardless of its
-cron value; see [Architecture](../architecture.md#current-implementation-and-pending-work).
