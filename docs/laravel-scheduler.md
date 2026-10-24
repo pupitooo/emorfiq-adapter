@@ -2,8 +2,9 @@
 
 `LaravelAdapter::createSchedule()` converts configuration definitions into
 Illuminate Scheduler callback events. Building the schedule does not resolve
-or run any tasks. At execution time, each callback uses `TaskResolver` to
-retrieve its task through Symfony DependencyInjection and calls `Task::run()`.
+or run any tasks. At execution time, each callback invokes `TaskExecutor`, which uses
+`TaskResolver` to retrieve its task through Symfony DependencyInjection and calls
+`Task::run()`, with lifecycle logging.
 
 ## Execution cycle
 
@@ -15,12 +16,20 @@ events are eligible at the current time. The adapter uses those results:
 ```php
 $schedule = $this->createSchedule();
 $events = $schedule->dueEvents($this->application);
+$failures = [];
 foreach ($events as $event) {
     if (! $event->filtersPass($this->application)) {
         continue;
     }
 
-    $event->run($this->application);
+    try {
+        $event->run($this->application);
+    } catch (TaskExecutionException $failure) {
+        $failures[] = $failure;
+    }
+}
+if ($failures !== []) {
+    throw new SchedulerRunException($failures);
 }
 ```
 
@@ -46,7 +55,7 @@ Each definition produces one callback event, preserving configuration order:
 | `id` | Event name via `name()`. |
 | `cron` | Validated expression via `cron()`, passed unchanged. Supported aliases are retained. |
 | `timezone` | Event time zone via `timezone()`, including the configuration's UTC default. |
-| `task` | Class passed to `TaskResolver` inside the callback when the event runs. |
+| `task` | Class resolved through `TaskExecutor` inside the callback when the event runs. |
 
 Each call to `createSchedule()` returns a fresh schedule, so repeated builds
 do not accumulate events. The parser rejects invalid values, including
@@ -102,21 +111,23 @@ Illuminate APIs that access the global container, such as `command()` and
 
 ## Integration boundary
 
-`bin/run.php` retrieves `SchedulerApplication` from the compiled Symfony
-container and supplies it to `LaravelAdapter`. For each definition, the adapter
+`bin/run.php` retrieves `SchedulerApplication` and `TaskExecutor` from the
+compiled Symfony container and supplies them to `LaravelAdapter`. For each definition, the adapter
 registers a Scheduler callback:
 
 ```php
 $schedule->call(function () use ($definition): void {
-    $this->taskResolver->resolve($definition->task)->run();
+    $this->executor->execute($definition);
 })
     ->name($definition->id)
     ->cron($definition->cron)
     ->timezone($definition->timezone);
 ```
 
-Task resolution occurs inside the callback. Task failures propagate to the
-caller and stop processing further definitions.
+Task resolution occurs inside the callback. Task failures are logged and collected
+while later due events continue. After processing the plan, the adapter reports
+all failures to the CLI. See [Task execution](task-execution.md) for the lifecycle
+records, exception boundaries, and exit status.
 
 `run()` delegates selection to Laravel and invokes only the selected events;
 see [Execution cycle](#execution-cycle) for the runner flow and
@@ -152,5 +163,8 @@ order, empty configurations, and propagation of task resolution failures.
 It covers selection across consecutive minutes, Prague and New York time zones
 in summer and winter, the UTC default regardless of PHP's time zone, cron
 aliases, and a plan with no due work. An unregistered task is skipped when not
-due. A task execution failure propagates immediately, before later tasks can
-be resolved. Each scenario restores the previous clock state in `finally`.
+due. Each scenario restores the previous clock state in `finally`.
+
+`TaskExecutionLoggingTest` verifies lifecycle order, metadata, duration, exception
+details, task resolution failures, PHP errors, and continuation after multiple
+failures using the actual configured logger.

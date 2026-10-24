@@ -14,7 +14,7 @@ use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 return static function (ContainerConfigurator $container): void {
     $services = $container->services();
 
-    $services->set(JsonFormatter::class);
+    $services->set(JsonFormatter::class)->arg('$includeStacktraces', true);
 
     $services->set(StreamHandler::class)
         ->arg('$stream', __DIR__ . '/../../storage/logs/adapter.log')

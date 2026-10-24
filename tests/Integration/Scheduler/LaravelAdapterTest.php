@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Integration\Scheduler;
 
+use App\Scheduler\Application\TaskExecutor;
 use App\Scheduler\Domain\ScheduleDefinition;
+use App\Scheduler\Exception\SchedulerRunException;
 use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
 use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use App\Task\Execution\PingTask;
@@ -13,8 +15,10 @@ use Exception;
 use Illuminate\Console\Scheduling\CallbackEvent;
 use Illuminate\Console\Scheduling\Schedule;
 use LogicException;
+use Psr\Log\NullLogger;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Tests\Fixtures\Task\LoggingTask;
+use Tests\Support\LogRecords;
 use Tests\Support\SchedulerFixtures;
 use Tests\Support\TaskServices;
 
@@ -48,7 +52,8 @@ final readonly class LaravelAdapterTest
             new ScheduleDefinition('daily', PingTask::class, '@daily'),
         ]);
         $resolver = new SymfonyTaskResolver(new ContainerBuilder());
-        $adapter = new LaravelAdapter($resolver, $configuration, new SchedulerApplication());
+        $executor = new TaskExecutor($resolver, new NullLogger());
+        $adapter = new LaravelAdapter($executor, $configuration, new SchedulerApplication());
         $this->assertMappedEvents($adapter->createSchedule());
         $this->assertMappedEvents($adapter->createSchedule());
     }
@@ -87,32 +92,16 @@ final readonly class LaravelAdapterTest
             new ScheduleDefinition('fixture', LoggingTask::class, '* * * * *'),
             new ScheduleDefinition('ping-second', PingTask::class, '* * * * *'),
         ]);
-        $resolver = new SymfonyTaskResolver(TaskServices::container($path));
-        new LaravelAdapter($resolver, $configuration, new SchedulerApplication())->run();
+        $executor = TaskServices::executor(TaskServices::container($path));
+        new LaravelAdapter($executor, $configuration, new SchedulerApplication())->run();
 
         $this->assertLog($path);
     }
 
     private function assertLog(string $path): void
     {
-        $lines = file($path, FILE_IGNORE_NEW_LINES);
-        if ($lines === false || count($lines) !== 3) {
-            throw new LogicException('Each configured definition must produce one JSON log record.');
-        }
-
-        foreach ($lines as $index => $line) {
-            $this->assertLogRecord($line, $index === 1 ? 'fixture task' : 'ping');
-        }
-    }
-
-    private function assertLogRecord(string $line, string $message): void
-    {
-        $record = json_decode($line, true);
-        if (
-            ! is_array($record) || ($record['message'] ?? null) !== $message
-            || ($record['level'] ?? null) !== 200
-        ) {
-            throw new LogicException('The configured logger must write task messages as INFO JSON records in order.');
+        if (LogRecords::taskMessages($path) !== ['ping', 'fixture task', 'ping']) {
+            throw new LogicException('Each definition must produce its task message in order.');
         }
     }
 
@@ -122,7 +111,8 @@ final readonly class LaravelAdapterTest
     private function runsNothingForEmptyConfiguration(): void
     {
         $resolver = new SymfonyTaskResolver(new ContainerBuilder());
-        new LaravelAdapter($resolver, SchedulerFixtures::configuration([]), new SchedulerApplication())->run();
+        $executor = new TaskExecutor($resolver, new NullLogger());
+        new LaravelAdapter($executor, SchedulerFixtures::configuration([]), new SchedulerApplication())->run();
     }
 
     /**
@@ -135,9 +125,13 @@ final readonly class LaravelAdapterTest
             new ScheduleDefinition('missing', LoggingTask::class, '* * * * *'),
         ]);
         try {
-            new LaravelAdapter($resolver, $configuration, new SchedulerApplication())->run();
-        } catch (LogicException $exception) {
-            if ($exception->getMessage() !== 'Task is not registered: ' . LoggingTask::class) {
+            $executor = new TaskExecutor($resolver, new NullLogger());
+            new LaravelAdapter($executor, $configuration, new SchedulerApplication())->run();
+        } catch (SchedulerRunException $exception) {
+            if (
+                $exception->failures[0]->getPrevious()?->getMessage()
+                !== 'Task is not registered: ' . LoggingTask::class
+            ) {
                 throw new LogicException('The adapter must propagate task resolution failures.', previous: $exception);
             }
 

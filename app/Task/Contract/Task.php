@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Task\Contract;
 
-use Exception;
+use Throwable;
 
 interface Task
 {
     /**
-     * @throws Exception When task execution fails.
+     * @throws Throwable When task execution fails.
      */
     public function run(): void;
 }

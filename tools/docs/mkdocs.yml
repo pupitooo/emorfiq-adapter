@@ -44,6 +44,7 @@ nav:
       - Architecture: architecture.md
       - Laravel Scheduler: laravel-scheduler.md
       - Task services: task-services.md
+      - Task execution: task-execution.md
   - Configuration:
       - JSON format: configuration/format.md
       - Cron syntax: configuration/cron.md
@@ -51,6 +52,7 @@ nav:
       - Test cases: configuration/tests.md
   - Development:
       - Local environment: development/local-environment.md
+      - Log viewer: development/log-viewer.md
       - Documentation: development/documentation.md
 extra:
   social:

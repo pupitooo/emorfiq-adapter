@@ -8,15 +8,13 @@ use App\Scheduler\Domain\ScheduleDefinition;
 use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
 use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use App\Task\Execution\PingTask;
-use App\Task\Infrastructure\Symfony\SymfonyTaskResolver;
 use DateTimeImmutable;
 use Exception;
 use Illuminate\Support\Facades\Date;
 use LogicException;
-use RuntimeException;
 use stdClass;
-use Tests\Fixtures\Task\FailingTask;
 use Tests\Fixtures\Task\LoggingTask;
+use Tests\Support\LogRecords;
 use Tests\Support\SchedulerFixtures;
 use Tests\Support\TaskServices;
 
@@ -32,7 +30,6 @@ final readonly class DueEventsTest
         $this->defaultsToUtcRegardlessOfPhpTimezone();
         $this->evaluatesCronAliases();
         $this->skipsUnregisteredTasksWhenNotDue();
-        $this->propagatesTaskFailureBeforeResolvingFollowingTasks();
     }
 
     /**
@@ -103,28 +100,6 @@ final readonly class DueEventsTest
     }
 
     /**
-     * @throws Exception
-     */
-    private function propagatesTaskFailureBeforeResolvingFollowingTasks(): void
-    {
-        $definitions = [
-            new ScheduleDefinition('failing', FailingTask::class, '* * * * *'),
-            new ScheduleDefinition('following', stdClass::class, '* * * * *'),
-        ];
-        try {
-            $this->runSchedulesAt('2026-10-26 08:00:00 UTC', $definitions);
-        } catch (RuntimeException $exception) {
-            if ($exception->getMessage() !== 'Task execution failed.') {
-                throw new LogicException('The adapter must propagate the original task failure.', previous: $exception);
-            }
-
-            return;
-        }
-
-        throw new LogicException('A failed task must stop execution before resolving following tasks.');
-    }
-
-    /**
      * @param list<ScheduleDefinition> $definitions
      * @return list<string>
      * @throws Exception
@@ -135,45 +110,17 @@ final readonly class DueEventsTest
         $path = $this->temporaryFile();
         try {
             Date::setTestNow(new DateTimeImmutable($instant));
-            $resolver = new SymfonyTaskResolver(TaskServices::container($path));
+            $executor = TaskServices::executor(TaskServices::container($path));
             $configuration = SchedulerFixtures::configuration($definitions);
-            new LaravelAdapter($resolver, $configuration, new SchedulerApplication())->run();
+            new LaravelAdapter($executor, $configuration, new SchedulerApplication())->run();
 
-            return $this->loggedMessages($path);
+            return LogRecords::taskMessages($path);
         } finally {
             Date::setTestNow($original);
             if (! unlink($path)) {
                 throw new LogicException('Unable to remove the task execution log.');
             }
         }
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function loggedMessages(string $path): array
-    {
-        $lines = file($path, FILE_IGNORE_NEW_LINES);
-        if ($lines === false) {
-            throw new LogicException('Unable to read the task execution log.');
-        }
-
-        $messages = [];
-        foreach ($lines as $line) {
-            $messages[] = $this->messageFromRecord($line);
-        }
-
-        return $messages;
-    }
-
-    private function messageFromRecord(string $line): string
-    {
-        $record = json_decode($line, true);
-        if (! is_array($record) || ! is_string($record['message'] ?? null)) {
-            throw new LogicException('Task execution must produce JSON log records with string messages.');
-        }
-
-        return $record['message'];
     }
 
     /**

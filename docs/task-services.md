@@ -14,11 +14,14 @@ Schedules select a task by its fully qualified class name; see
   and enables constructor autowiring. This directory contains only concrete tasks;
   contracts and infrastructure live in separate directories.
   An `instanceof` rule makes services implementing `Task` public and non-shared.
+  The file also registers `SymfonyTaskResolver` against the current container and
+  aliases it to `TaskResolver`.
+- `config/services/scheduler.php` registers `SchedulerApplication` and autowires
+  `TaskExecutor` with the resolver and the shared logger.
 
 `bin/run.php` loads this configuration with Symfony's `PhpFileLoader`, compiles the
-container for each CLI invocation, and passes it to `SymfonyTaskResolver`.
-Scheduler adapters depend only on the
-application-owned `TaskResolver` contract. Tasks implement `Task::run(): void`.
+container for each CLI invocation, and retrieves the configured execution services.
+`TaskExecutor` depends on the application-owned `TaskResolver` contract. Tasks implement `Task::run(): void`.
 
 Task classes are registered automatically under their fully qualified class names,
 matching the `task` values in `config/scheduler.json`. The resolver retrieves registered
@@ -46,6 +49,9 @@ The Symfony framework and YAML loader are not required by this PHP configuration
 `SymfonyTaskResolver` raises `LogicException` for an unregistered task or a service
 that does not implement `Task`. Container resolution failures are wrapped in
 `LogicException` with the original exception preserved as the previous exception.
+
+During scheduled execution these failures are logged and collected like task
+execution failures; see [Task execution](task-execution.md).
 
 For the complete invocation flow and current limitations, see
 [Architecture](architecture.md#execution-flow).

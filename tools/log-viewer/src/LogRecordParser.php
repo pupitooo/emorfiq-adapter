@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace DevTools\LogViewer;
 
 /**
- * @phpstan-type LogContext array{task: string}
+ * @phpstan-type LogContext array{task: string, ...}
  * @phpstan-type LogRecord array{
  *     datetime: string,
  *     level_name: string,
@@ -29,9 +29,7 @@ final readonly class LogRecordParser
             'datetime' => $record['datetime'],
             'level_name' => $record['level_name'],
             'message' => $record['message'],
-            'context' => [
-                'task' => $record['context']['task'],
-            ],
+            'context' => $record['context'],
         ];
     }
 
