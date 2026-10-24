@@ -5,6 +5,38 @@ Illuminate Scheduler callback events. Building the schedule does not resolve
 or run any tasks. At execution time, each callback uses `TaskResolver` to
 retrieve its task through Symfony DependencyInjection and calls `Task::run()`.
 
+## Execution cycle
+
+Cron starts `bin/run.php` every minute. Our entry point and adapter serve as the
+application's scheduler runner in place of invoking Artisan's `schedule:run`.
+Registering events describes the plan; Laravel's `dueEvents()` selects which
+events are eligible at the current time. The adapter uses those results:
+
+```php
+$schedule = $this->createSchedule();
+$events = $schedule->dueEvents($this->application);
+foreach ($events as $event) {
+    if (! $event->filtersPass($this->application)) {
+        continue;
+    }
+
+    $event->run($this->application);
+}
+```
+
+Laravel evaluates each expression in its event time zone, including supported
+cron aliases. `filtersPass()` applies the event's additional conditions. Skipped
+events never resolve or construct their tasks. Events that pass are executed
+in configuration order. An empty configuration or a plan with no due events
+executes nothing.
+
+One invocation evaluates the current schedule and returns; cron provides the
+next invocation. It does not wait for future execution times or record completed
+time slots. Calling it again in the same minute may execute the same due events
+again. See Laravel's [Running the Scheduler](https://laravel.com/docs/13.x/scheduling#running-the-scheduler)
+and [ScheduleRunCommand](https://github.com/illuminate/console/blob/13.x/Scheduling/ScheduleRunCommand.php)
+for the corresponding standard entry point and orchestration.
+
 ## Definition mapping
 
 Each definition produces one callback event, preserving configuration order:
@@ -41,6 +73,13 @@ This is a limited scheduler context, not an implementation of Laravel's full
 `Foundation\Application` contract. It uses `illuminate/console` and
 `illuminate/container` without installing `laravel/framework`. The existing
 `dragonmantank/cron-expression` dependency supplies cron parsing.
+
+Illuminate's PHPDoc expects the full `Foundation\Application` contract and
+omits the element type of the collection returned by `dueEvents()`. The adapter's
+local PHPStan annotations describe the actual event collection and the limited
+context used by these APIs: environment and maintenance methods for due-time
+selection, and the Illuminate container for event filters. The integration tests
+exercise these calls against the installed Illuminate implementation.
 
 Creating this service does not replace Illuminate's global container, initialize
 facades, change PHP's time zone, or execute scheduled work. Its
@@ -79,11 +118,10 @@ $schedule->call(function () use ($definition): void {
 Task resolution occurs inside the callback. Task failures propagate to the
 caller and stop processing further definitions.
 
-`run()` currently executes every registered event once using
-`$event->run($this->application)`. Cron and time zone metadata are registered,
-but due-time filtering is not yet applied. Each configured definition therefore
-still runs on every invocation. Due-time evaluation is the next step; see
-[Architecture](architecture.md#current-implementation-and-pending-work).
+`run()` delegates selection to Laravel and invokes only the selected events;
+see [Execution cycle](#execution-cycle) for the runner flow and
+[Architecture](architecture.md#current-implementation-and-pending-work) for
+remaining integration work.
 
 ## Mutex placeholders
 
@@ -109,3 +147,10 @@ placeholders.
 `LaravelAdapterTest` verifies mapping of identifiers, cron expressions, aliases,
 and time zones without resolving tasks. Existing execution tests cover task
 order, empty configurations, and propagation of task resolution failures.
+
+`DueEventsTest` freezes Laravel's clock and runs actual Symfony task services.
+It covers selection across consecutive minutes, Prague and New York time zones
+in summer and winter, the UTC default regardless of PHP's time zone, cron
+aliases, and a plan with no due work. An unregistered task is skipped when not
+due. A task execution failure propagates immediately, before later tasks can
+be resolved. Each scenario restores the previous clock state in `finally`.

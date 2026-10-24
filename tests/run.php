@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Tests\Integration\Scheduler\DueEventsTest;
 use Tests\Integration\Scheduler\InMemorySchedulerConfigurationTest;
 use Tests\Integration\Scheduler\LaravelAdapterTest;
 use Tests\Integration\Scheduler\SchedulerApplicationTest;
@@ -22,4 +23,5 @@ new CronConfigurationParserTest()->run();
 new InMemorySchedulerConfigurationTest()->run();
 new SymfonyTaskResolverTest()->run();
 new LaravelAdapterTest()->run();
+new DueEventsTest()->run();
 new SchedulerApplicationTest()->run();

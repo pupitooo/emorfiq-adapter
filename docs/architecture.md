@@ -16,7 +16,8 @@ flowchart TD
     Container --> Context["SchedulerApplication"]
     Context --> Schedule["Illuminate Schedule"]
     Adapter --> Schedule
-    Schedule --> Callback["Invoke configured callback"]
+    Schedule --> Due["Laravel: select due events and check conditions"]
+    Due --> Callback["Invoke selected callback"]
     Callback --> Resolver
     Resolver --> Task["Fresh task instance"]
     Task --> Execution["Execute task: Task::run()"]
@@ -34,9 +35,12 @@ flowchart TD
 4. `LaravelAdapter` builds a fresh Illuminate `Schedule`, mapping each definition
    to a callback event with its identifier, cron expression, and time zone.
    Registration does not resolve tasks.
-5. `run()` currently executes every registered event. Inside each callback it
-   asks `TaskResolver` for the task and calls `Task::run()`. An empty task list
-   runs nothing. Each definition receives a fresh task instance.
+5. `run()` calls Laravel's `dueEvents()` to select events for the current time,
+   then checks each event's `filtersPass()` result before executing it.
+   Laravel evaluates the cron expression in the event's time zone.
+6. Inside each selected callback, the adapter asks `TaskResolver` for the task
+   and calls `Task::run()`. Skipped definitions do not resolve tasks. An empty
+   task list runs nothing; each executed definition receives a fresh task instance.
 
 See [Task services](task-services.md) for registration and resolution failures,
 and [Scheduler JSON](configuration/format.md) for fields and validation.
@@ -60,10 +64,12 @@ Illuminate container and minimal scheduler context, registered in Symfony DI.
 `LaravelAdapter` uses this context to build callback schedules and execute their
 events. Task construction remains in Symfony.
 
-`LaravelAdapter` is an execution prototype. It runs every configured definition
-once on every invocation, regardless of its cron expression or time zone.
-Definitions are translated into Scheduler events, but due-time filtering and
-functional mutex locking remain pending. Mutex placeholders throw
+Each CLI invocation builds a plan and executes its currently due callbacks in
+configuration order. Cron evaluation, time zones, aliases, and event conditions
+are delegated to Laravel Scheduler. Task failures propagate to the CLI caller
+and stop processing the remaining events.
+
+Functional mutex locking remains pending. Mutex placeholders throw
 `LogicException('Not Implemented')` if a lock operation is requested.
 The container is compiled for each invocation; it is not cached between processes.
 

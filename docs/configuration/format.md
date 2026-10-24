@@ -110,9 +110,8 @@ registered automatically. JSON defines the schedule; PHP service configuration
 provides constructor dependencies. See [Task services](../task-services.md) for
 registration, autowiring, instance lifetimes, and resolution failures.
 
-The current adapter runs every configured definition once per invocation;
-see [Architecture](../architecture.md#current-implementation-and-pending-work)
-for scheduling limitations.
+Tasks are resolved only when their schedules are due and event conditions pass;
+see the [Laravel execution cycle](../laravel-scheduler.md#execution-cycle).
 
 ## Implementation and tests
 
