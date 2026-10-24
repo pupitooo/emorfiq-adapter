@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
-namespace App\Scheduler\Infrastructure\Laravel;
+namespace App\Scheduler\Infrastructure\Laravel\Runtime;
 
+use App\Scheduler\Infrastructure\Laravel\Mutex\NotImplementedEventMutex;
+use App\Scheduler\Infrastructure\Laravel\Mutex\NotImplementedSchedulingMutex;
 use Exception;
 use Illuminate\Console\Scheduling\EventMutex;
-use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Console\Scheduling\Schedule as IlluminateSchedule;
 use Illuminate\Console\Scheduling\SchedulingMutex;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Container\Container as ContainerContract;
@@ -36,15 +38,12 @@ final class SchedulerApplication extends Container
     /**
      * @throws Exception
      */
-    public function createSchedule(): Schedule
+    public function createSchedule(): IlluminateSchedule
     {
-        $previous = Container::getInstance();
-        Container::setInstance($this);
-        try {
-            return new Schedule();
-        } finally {
-            Container::setInstance($previous);
-        }
+        return new Schedule(
+            $this->make(EventMutex::class),
+            $this->make(SchedulingMutex::class),
+        );
     }
 
     public function isDownForMaintenance(): bool

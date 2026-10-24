@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Scheduler\Infrastructure\Laravel;
+namespace App\Scheduler\Infrastructure\Laravel\Mutex;
 
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\EventMutex;

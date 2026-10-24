@@ -21,7 +21,7 @@ final readonly class CronConfigurationParserTest
         '@daily',
         '@midnight',
         '@hourly',
-        " \t@DAILY\n",
+        '@DAILY',
         '@Monthly',
         '0 0 L * *',
         '0 9 15W * *',
@@ -32,7 +32,7 @@ final readonly class CronConfigurationParserTest
         '0 0 1 1 0',
         '59 23 31 12 7',
         '0 9 * JAN,MAR MON-FRI',
-        " \t*/5  9-17\t* * 1-5\n",
+        "*/5  9-17\t* * 1-5",
     ];
 
     private const array INVALID_EXPRESSIONS = [

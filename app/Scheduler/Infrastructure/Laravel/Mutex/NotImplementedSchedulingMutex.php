@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Scheduler\Infrastructure\Laravel;
+namespace App\Scheduler\Infrastructure\Laravel\Mutex;
 
 use DateTimeInterface;
 use Illuminate\Console\Scheduling\Event;

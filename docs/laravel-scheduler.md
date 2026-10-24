@@ -12,13 +12,14 @@ Each definition produces one callback event, preserving configuration order:
 | Definition field | Scheduler mapping |
 | --- | --- |
 | `id` | Event name via `name()`. |
-| `cron` | Expression via `cron()`, with surrounding whitespace trimmed locally. Supported aliases are retained. |
+| `cron` | Validated expression via `cron()`, passed unchanged. Supported aliases are retained. |
 | `timezone` | Event time zone via `timezone()`, including the configuration's UTC default. |
 | `task` | Class passed to `TaskResolver` inside the callback when the event runs. |
 
 Each call to `createSchedule()` returns a fresh schedule, so repeated builds
-do not accumulate events. The configuration snapshot retains its original
-values, including surrounding cron whitespace. See
+do not accumulate events. The parser rejects invalid values, including
+[surrounding whitespace](configuration/format.md#string-validation), so the adapter
+uses the configuration values directly. See
 [Cron syntax](configuration/cron.md) for supported expressions and aliases.
 
 ## Runtime context
@@ -43,9 +44,22 @@ This is a limited scheduler context, not an implementation of Laravel's full
 
 Creating this service does not replace Illuminate's global container, initialize
 facades, change PHP's time zone, or execute scheduled work. Its
-`createSchedule()` method temporarily installs this context as the global
-Illuminate container while constructing `Schedule`, then restores the previous
-container in `finally`, including on initialization failure.
+`createSchedule()` method resolves the two mutex services from this context and
+passes them directly to `Schedule`. Schedule construction leaves the
+global container untouched, including while resolving dependencies and on failure.
+
+### Schedule construction
+
+`App\Scheduler\Infrastructure\Laravel\Runtime\Schedule` extends Illuminate's
+`Schedule` and replaces only its constructor. It assigns the supplied `EventMutex` and `SchedulingMutex` to the
+inherited protected properties, bypassing the upstream constructor's global
+container lookup. Event registration and execution continue to use Illuminate's
+implementation; the adapter sets time zones on individual events.
+
+This small compatibility boundary depends on the upstream protected properties
+and constructor initialization. Review it when upgrading Illuminate. Other
+Illuminate APIs that access the global container, such as `command()` and
+`job()`, are outside the current callback-based adapter.
 
 ## Integration boundary
 
@@ -58,7 +72,7 @@ $schedule->call(function () use ($definition): void {
     $this->taskResolver->resolve($definition->task)->run();
 })
     ->name($definition->id)
-    ->cron(trim($definition->cron))
+    ->cron($definition->cron)
     ->timezone($definition->timezone);
 ```
 
@@ -73,10 +87,11 @@ still runs on every invocation. Due-time evaluation is the next step; see
 
 ## Mutex placeholders
 
-The `Schedule` constructor requires both `EventMutex` and `SchedulingMutex`,
+`Schedule` accepts both `EventMutex` and `SchedulingMutex` explicitly,
 even when no locking feature is enabled. `SchedulerApplication` binds these
 interfaces to `NotImplementedEventMutex` and `NotImplementedSchedulingMutex`.
-Every lock operation throws `LogicException('Not Implemented')`.
+Every lock operation throws `LogicException('Not Implemented')`; implementing
+the lock behavior is deferred.
 
 Ordinary callback execution does not use these lock operations.
 `withoutOverlapping()` and single-server execution remain unsupported; no
@@ -86,7 +101,8 @@ locking options have been added to JSON configuration or cache storage.
 
 `SchedulerApplicationTest` runs actual Illuminate callbacks and schedules to
 verify container injection, task resolution through Symfony, independent plans,
-and restoration of the global container on success and failure. It also checks
+and preservation of the global container during dependency resolution and on
+success and failure. It also checks
 that overlapping and single-server execution fail explicitly through the mutex
 placeholders.
 

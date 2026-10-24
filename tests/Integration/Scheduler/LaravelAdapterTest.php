@@ -8,7 +8,7 @@ use App\Scheduler\Contract\SchedulerConfiguration;
 use App\Scheduler\Domain\Configuration;
 use App\Scheduler\Domain\ScheduleDefinition;
 use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
-use App\Scheduler\Infrastructure\Laravel\SchedulerApplication;
+use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use App\Task\Execution\PingTask;
 use App\Task\Infrastructure\Symfony\SymfonyTaskResolver;
 use Exception;
@@ -46,8 +46,8 @@ final readonly class LaravelAdapterTest
     private function mapsDefinitionsWithoutResolvingTasks(): void
     {
         $configuration = $this->configuration([
-            new ScheduleDefinition('weekday', LoggingTask::class, " \t0 9 * * 1-5\n", 'Europe/Prague'),
-            new ScheduleDefinition('daily', PingTask::class, "\t@daily\n"),
+            new ScheduleDefinition('weekday', LoggingTask::class, '0 9 * * 1-5', 'Europe/Prague'),
+            new ScheduleDefinition('daily', PingTask::class, '@daily'),
         ]);
         $resolver = new SymfonyTaskResolver(new ContainerBuilder());
         $adapter = new LaravelAdapter($resolver, $configuration, new SchedulerApplication());
@@ -68,7 +68,7 @@ final readonly class LaravelAdapterTest
             ! $weekday instanceof CallbackEvent || $weekday->description !== 'weekday'
             || $weekday->expression !== '0 9 * * 1-5' || $weekday->timezone !== 'Europe/Prague'
         ) {
-            throw new LogicException('Events must retain identifiers, trimmed cron expressions, and time zones.');
+            throw new LogicException('Events must retain identifiers, cron expressions, and time zones.');
         }
 
         if (

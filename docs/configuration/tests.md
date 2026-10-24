@@ -56,10 +56,10 @@ independent of PHP's current time zone. Fixture reading is test setup;
 the provider is not involved in these scenarios.
 
 `CronConfigurationParserTest` adds valid numeric boundaries, named months and
-weekdays, and mixed whitespace. It rejects empty and Unicode-whitespace-only
+weekdays, and mixed whitespace between fields. It rejects empty and Unicode-whitespace-only
 expressions, too few or too many fields, out-of-range values, invalid tokens,
 steps, ranges, and lists. It accepts all seven built-in aliases, including
-aliases with surrounding whitespace or uppercase letters, and preserves their
+aliases with uppercase letters, and preserves their
 original values. Extended expressions cover `L`, `W`, `LW`, `#`, and `?`.
 Unknown aliases (including `@reboot`) and malformed aliases are rejected.
 These tests validate syntax and stored values; they do not evaluate run dates.
@@ -67,6 +67,11 @@ The existing empty-cron and six-field fixtures remain covered.
 Missing `cron` keys produce a required-field schema error. Empty strings and
 ASCII- or Unicode-whitespace-only cron values produce a non-empty field error;
 non-empty expressions with invalid syntax produce a cron syntax error.
+
+`InvalidJsonConfigurationParserTest` rejects leading and trailing spaces, tabs,
+line breaks, and Unicode whitespace independently for `id`, `task`, `cron`, and
+`timezone`. Cron cases cover both five-field expressions and aliases. These
+failures name the affected field and enforce [String validation](format.md#string-validation).
 
 The [provider integration test](https://github.com/pupitooo/emorfiq-adapter/blob/main/tests/Integration/Scheduler/InMemorySchedulerConfigurationTest.php)
 covers loading an actual file, retaining the original configuration after the
@@ -94,6 +99,7 @@ aggregation of multiple schema errors into a single configuration failure.
 | `missing-id.json`, `missing-task.json`, `missing-cron.json` | A required task field is missing. |
 | `empty-id.json`, `unicode-whitespace-id.json` | The identifier contains only ASCII or Unicode whitespace. |
 | `empty-task.json`, `empty-cron.json` | The task class name or cron expression contains only whitespace. |
+| `surrounding-whitespace.json` | The identifier has surrounding whitespace. |
 | `task-is-number.json` | The task class name is a number instead of a string. |
 | `cron-has-seconds.json` | The cron expression has six fields instead of five. |
 | `invalid-timezone.json`, `null-timezone.json`, `empty-timezone.json` | The time zone is unknown, explicitly null, or empty. |

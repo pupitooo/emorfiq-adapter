@@ -124,7 +124,7 @@ final readonly class JsonConfigurationParser
         $identifiers = [];
         foreach ($configuration->tasks as $index => $definition) {
             $path = 'tasks[' . $index . ']';
-            $this->validateNonEmptyFields($definition, $path);
+            $this->validateStringFields($definition, $path);
             $this->validateCronExpression($definition->cron, $path);
             $this->validateTimezone($definition->timezone, $path);
             if (isset($identifiers[$definition->id])) {
@@ -138,7 +138,7 @@ final readonly class JsonConfigurationParser
     /**
      * @throws ConfigurationException
      */
-    private function validateNonEmptyFields(ScheduleDefinition $definition, string $path): void
+    private function validateStringFields(ScheduleDefinition $definition, string $path): void
     {
         $fields = [
             'id' => $definition->id,
@@ -147,8 +147,13 @@ final readonly class JsonConfigurationParser
             'timezone' => $definition->timezone,
         ];
         foreach ($fields as $field => $value) {
-            if (Strings::trim($value) === '') {
+            $trimmed = Strings::trim($value);
+            if ($trimmed === '') {
                 throw new ConfigurationException($path . '.' . $field . ' must contain a non-whitespace character.');
+            }
+
+            if ($trimmed !== $value) {
+                throw new ConfigurationException($path . '.' . $field . ' must not contain surrounding whitespace.');
             }
         }
     }
@@ -158,8 +163,7 @@ final readonly class JsonConfigurationParser
      */
     private function validateCronExpression(string $cron, string $path): void
     {
-        $expression = trim($cron);
-        if (! CronExpression::isValidExpression($expression)) {
+        if (! CronExpression::isValidExpression($cron)) {
             throw new ConfigurationException(
                 $path . '.cron must be a valid five-field expression or supported cron alias.',
             );

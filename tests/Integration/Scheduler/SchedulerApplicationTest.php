@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Integration\Scheduler;
 
-use App\Scheduler\Infrastructure\Laravel\SchedulerApplication;
+use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use App\Task\Infrastructure\Symfony\SymfonyTaskResolver;
 use DateTimeImmutable;
 use Exception;
 use Illuminate\Console\Scheduling\CallbackEvent;
 use Illuminate\Console\Scheduling\EventMutex;
+use Illuminate\Console\Scheduling\SchedulingMutex;
 use Illuminate\Container\Container;
 use Illuminate\Contracts\Container\Container as ContainerContract;
 use LogicException;
@@ -31,8 +32,8 @@ final readonly class SchedulerApplicationTest
         $this->callbacksResolveTasksThroughSymfony();
         $this->containersKeepSeparateBindings();
         $this->creationPreservesGlobalContainer();
-        $this->scheduleCreationRestoresGlobalContainer();
-        $this->scheduleFailureRestoresGlobalContainer();
+        $this->scheduleCreationKeepsGlobalContainer();
+        $this->scheduleFailureKeepsGlobalContainer();
         $this->scheduleBuildsKeepSeparateEvents();
         $this->rejectsOverlappingExecution();
         $this->rejectsSingleServerExecution();
@@ -117,28 +118,47 @@ final readonly class SchedulerApplicationTest
     /**
      * @throws Exception
      */
-    private function scheduleCreationRestoresGlobalContainer(): void
+    private function scheduleCreationKeepsGlobalContainer(): void
     {
         $original = Container::getInstance();
-        $schedule = new SchedulerApplication()->createSchedule();
+        $application = new SchedulerApplication();
+        $mutex = new UnusedEventMutex();
+        $application->bind(EventMutex::class, static function () use ($original, $mutex): EventMutex {
+            if (Container::getInstance() !== $original) {
+                throw new LogicException('Resolving schedule dependencies must preserve the global container.');
+            }
+
+            return $mutex;
+        });
+        $schedule = $application->createSchedule();
         if ($schedule->events() !== [] || Container::getInstance() !== $original) {
-            throw new LogicException('Schedule creation must return an empty plan and restore the global container.');
+            throw new LogicException('Schedule creation must return an empty plan and preserve the global container.');
+        }
+
+        if ($schedule->call(static fn() => null)->mutex !== $mutex) {
+            throw new LogicException('Schedule events must use the explicitly supplied event mutex.');
         }
     }
 
     /**
      * @throws Exception
      */
-    private function scheduleFailureRestoresGlobalContainer(): void
+    private function scheduleFailureKeepsGlobalContainer(): void
     {
         $original = Container::getInstance();
         $application = new SchedulerApplication();
-        $application->bind(EventMutex::class, static fn() => throw new LogicException('Mutex resolution failed.'));
+        $application->bind(SchedulingMutex::class, static function () use ($original): never {
+            if (Container::getInstance() !== $original) {
+                throw new LogicException('Failing dependency resolution must preserve the global container.');
+            }
+
+            throw new LogicException('Mutex resolution failed.');
+        });
         try {
             $application->createSchedule();
         } catch (LogicException $exception) {
             if ($exception->getMessage() !== 'Mutex resolution failed.' || Container::getInstance() !== $original) {
-                throw new LogicException('Schedule initialization must restore the global container on failure.');
+                throw new LogicException('Schedule initialization must preserve the global container on failure.');
             }
 
             return;

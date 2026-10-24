@@ -84,7 +84,10 @@ app/
     Exception/                ConfigurationException
     Infrastructure/
       Configuration/          JSON parser, in-memory provider, database placeholder
-      Laravel/                Execution adapter and Illuminate scheduler context
+      Laravel/
+        LaravelAdapter.php    Maps configuration and executes scheduler callbacks
+        Runtime/              SchedulerApplication context and Schedule
+        Mutex/                Event and single-server mutex placeholders
       Crunz/                  Alternative adapter placeholder
   Task/
     Contract/                 Task and TaskResolver

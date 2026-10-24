@@ -34,8 +34,9 @@ An alias replaces the complete expression:
 | `@daily`, `@midnight` | `0 0 * * *` |
 | `@hourly` | `0 * * * *` |
 
-Alias matching ignores letter case and surrounding ASCII whitespace. The parser
-preserves the original string, as it does for five-field expressions.
+Alias matching ignores letter case. The parser preserves the original string,
+as it does for five-field expressions. Surrounding whitespace is rejected for
+both aliases and five-field expressions; see [String validation](format.md#string-validation).
 Unknown aliases, including `@reboot`, are rejected. Alias support comes from
 the cron library; JSON does not define custom aliases. If PHP code registers
 an alias through the library's API before parsing, validation accepts it too.
@@ -68,10 +69,9 @@ field check rejects empty and whitespace-only cron values, including Unicode
 whitespace, with a specific non-empty field error.
 
 For non-empty values, the parser uses `CronExpression::isValidExpression()` to validate field counts,
-syntax, ranges, and aliases during configuration loading. It trims surrounding
-ASCII whitespace for validation and preserves the original value in the loaded
-definition. Invalid expressions raise `ConfigurationException` naming the cron
-field. Syntax validation does not guarantee that an expression has a matching
+syntax, ranges, and aliases during configuration loading. It validates the
+original value without trimming or transforming it. Invalid expressions raise
+`ConfigurationException` naming the cron field. Syntax validation does not guarantee that an expression has a matching
 calendar date; due-time evaluation remains part of the scheduler integration.
 
 Six-field expressions (seconds or a year), crontab command columns, and

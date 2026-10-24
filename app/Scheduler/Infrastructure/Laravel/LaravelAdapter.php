@@ -6,6 +6,7 @@ namespace App\Scheduler\Infrastructure\Laravel;
 
 use App\Scheduler\Contract\Adapter;
 use App\Scheduler\Contract\SchedulerConfiguration;
+use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use App\Task\Contract\TaskResolver;
 use Exception;
 use Illuminate\Console\Scheduling\Schedule;
@@ -42,7 +43,7 @@ final readonly class LaravelAdapter implements Adapter
                 $this->taskResolver->resolve($definition->task)->run();
             })
                 ->name($definition->id)
-                ->cron(trim($definition->cron))
+                ->cron($definition->cron)
                 ->timezone($definition->timezone);
         }
 

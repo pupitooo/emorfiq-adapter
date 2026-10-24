@@ -59,7 +59,14 @@ Each element of `tasks` must be a JSON object:
 | `timezone` | string | No | PHP time zone identifier, for example `UTC` or `Europe/Prague`. Defaults to `UTC` when omitted. |
 
 The same task class can have multiple schedules, each with its own unique `id`.
-Required strings cannot be empty or contain only whitespace.
+
+### String validation
+
+All string fields (`id`, `task`, `cron`, and explicit `timezone`) must be non-empty
+and must not start or end with whitespace, including Unicode whitespace.
+The parser rejects these values rather than trimming or repairing them.
+Accepted values are returned unchanged. Whitespace between cron fields remains
+valid, including multiple spaces and tabs.
 
 ### Cron expression
 
@@ -86,6 +93,7 @@ Configuration loading rejects:
 - A missing `tasks` field or a value other than an array.
 - A task entry other than an object.
 - Missing, non-string, empty, or whitespace-only `id`, `task`, or `cron` values.
+- Surrounding whitespace in any string field; see [String validation](#string-validation).
 - Duplicate task identifiers.
 - Invalid cron expressions or unknown aliases; see [Cron syntax](cron.md).
 - Explicit `timezone` values that are not non-empty strings or valid PHP time zones.

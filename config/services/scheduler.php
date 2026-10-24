@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Scheduler\Infrastructure\Laravel\SchedulerApplication;
+use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 return static function (ContainerConfigurator $container): void {
