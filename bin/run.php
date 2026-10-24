@@ -13,7 +13,6 @@ require __DIR__ . '/../vendor/autoload.php';
 $logger = require __DIR__ . '/../config/logger.php';
 
 $configuration = new InMemorySchedulerConfiguration(__DIR__ . '/../config/scheduler.json');
-$task = new PingTask($logger);
-$adapter = new LaravelAdapter($task, $configuration);
+$adapter = new LaravelAdapter(new PingTask($logger), $configuration);
 
 $adapter->run();

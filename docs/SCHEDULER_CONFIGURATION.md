@@ -2,10 +2,88 @@
 
 The JSON configuration is stored in [`config/scheduler.json`](../config/scheduler.json).
 
+## Root object
+
+| Field | JSON type | Required | Meaning |
+| --- | --- | --- | --- |
+| `version` | integer | Yes | Configuration format version. The defined version is `1`. |
+| `tasks` | array of objects | Yes | Scheduled task definitions. An empty array defines no tasks. |
+
+## Task definition
+
+| Field | JSON type | Required | Meaning |
+| --- | --- | --- | --- |
+| `id` | string | Yes | Non-empty schedule identifier, unique within `tasks`. |
+| `task` | string | Yes | Fully qualified PHP class name of the task. Backslashes are escaped as `\\` in JSON. |
+| `cron` | string | Yes | Five-field cron expression: minute, hour, day of month, month, day of week. |
+| `timezone` | string | No | Time zone identifier, such as `UTC` or `Europe/Prague`. Defaults to `UTC` when omitted. |
+
+The same task class can have multiple schedules, each with a distinct `id`.
+Cron expressions have minute precision and contain no seconds field.
+
+The default time zone is part of this format and is independent of the server's
+or PHP's time zone. A task's `timezone` overrides that default for its own schedule.
+To use the default, omit the field; `null` and an empty string are not valid time zones.
+
+## Loading and typed configuration
+
+`InMemorySchedulerConfiguration` receives the JSON file path in its constructor.
+It reads and converts the file once, retaining an immutable `Configuration`
+object in memory. `getConfiguration()` returns that object on every call.
+The shared `SchedulerConfiguration` contract declares this return type, allowing
+a future database provider to supply the same representation.
+
+`Configuration` contains `version: int` and `tasks: list<ScheduleDefinition>`.
+Each `ScheduleDefinition` contains `id`, `task`, `cron`, and `timezone` as string
+properties. An omitted time zone becomes `UTC` in the returned definition.
+Implementation code refers to version 1 through `Configuration::FORMAT_VERSION`
+and to the default time zone through `ScheduleDefinition::DEFAULT_TIMEZONE`.
+JSON definitions and fixture expectations keep the corresponding literal values.
+
+Unreadable files, invalid JSON, unsupported versions, invalid field types,
+empty required strings, duplicate identifiers, invalid time zones, and cron
+expressions with other than five fields raise `ConfigurationException`.
+Full cron expression validation and resolving task classes into executable
+instances remain part of the later scheduler integration.
+
+The database provider exposes the same method but currently throws
+`ConfigurationException('Not Implemented')`.
+
 ## Examples covered by parser unit tests
 
 The [example JSON](../tests/Fixtures/Scheduler/schedules.json) contains four
 schedules for the same `PingTask` class:
+
+```json
+{
+    "version": 1,
+    "tasks": [
+        {
+            "id": "ping-every-minute",
+            "task": "App\\Task\\PingTask",
+            "cron": "* * * * *"
+        },
+        {
+            "id": "ping-weekday-morning",
+            "task": "App\\Task\\PingTask",
+            "cron": "0 9 * * 1-5",
+            "timezone": "Europe/Prague"
+        },
+        {
+            "id": "ping-quarter-hour-weekdays",
+            "task": "App\\Task\\PingTask",
+            "cron": "*/15 9-17 * * 1-5",
+            "timezone": "Europe/Prague"
+        },
+        {
+            "id": "ping-twice-monthly",
+            "task": "App\\Task\\PingTask",
+            "cron": "30 18 1,15 * *",
+            "timezone": "America/New_York"
+        }
+    ]
+}
+```
 
 - Every minute, using UTC because `timezone` is omitted.
 - At 09:00 on weekdays in Prague.
@@ -56,85 +134,3 @@ Malformed JSON preserves its original `JsonException` as the previous exception;
 an invalid time zone preserves its `DateInvalidTimeZoneException`. Both exception
 chains are checked in unit tests. Omitting `timezone` remains valid and uses UTC;
 providing `null` or an empty string is rejected.
-
-## Loading and typed configuration
-
-`InMemorySchedulerConfiguration` receives the JSON file path in its constructor.
-It reads and converts the file once, retaining an immutable `Configuration`
-object in memory. `getConfiguration()` returns that object on every call.
-The shared `SchedulerConfiguration` contract declares this return type, allowing
-a future database provider to supply the same representation.
-
-`Configuration` contains `version: int` and `tasks: list<ScheduleDefinition>`.
-Each `ScheduleDefinition` contains `id`, `task`, `cron`, and `timezone` as string
-properties. An omitted time zone becomes `UTC` in the returned definition.
-Implementation code refers to version 1 through `Configuration::FORMAT_VERSION_1`
-and to the default time zone through `ScheduleDefinition::DEFAULT_TIMEZONE`.
-JSON definitions and fixture expectations keep the corresponding literal values.
-
-Unreadable files, invalid JSON, unsupported versions, invalid field types,
-empty required strings, duplicate identifiers, invalid time zones, and cron
-expressions with other than five fields raise `ConfigurationException`.
-Full cron expression validation and resolving task classes into executable
-instances remain part of the later scheduler integration.
-
-The database provider exposes the same method but currently throws
-`ConfigurationException('Not Implemented')`.
-
-## Root object
-
-| Field | JSON type | Required | Meaning |
-| --- | --- | --- | --- |
-| `version` | integer | Yes | Configuration format version. The defined version is `1`. |
-| `tasks` | array of objects | Yes | Scheduled task definitions. An empty array defines no tasks. |
-
-## Task definition
-
-| Field | JSON type | Required | Meaning |
-| --- | --- | --- | --- |
-| `id` | string | Yes | Non-empty schedule identifier, unique within `tasks`. |
-| `task` | string | Yes | Fully qualified PHP class name of the task. Backslashes are escaped as `\\` in JSON. |
-| `cron` | string | Yes | Five-field cron expression: minute, hour, day of month, month, day of week. |
-| `timezone` | string | No | Time zone identifier, such as `UTC` or `Europe/Prague`. Defaults to `UTC` when omitted. |
-
-The same task class can have multiple schedules, each with a distinct `id`.
-Cron expressions have minute precision and contain no seconds field.
-
-The default time zone is part of this format and is independent of the server's
-or PHP's time zone. A task's `timezone` overrides that default for its own schedule.
-To use the default, omit the field; `null` and an empty string are not valid time zones.
-
-## Example using the default time zone
-
-`PingTask` runs every minute, with the cron expression interpreted in UTC:
-
-```json
-{
-    "version": 1,
-    "tasks": [
-        {
-            "id": "ping",
-            "task": "App\\Task\\PingTask",
-            "cron": "* * * * *"
-        }
-    ]
-}
-```
-
-## Example with a task time zone
-
-This definition schedules `PingTask` daily at 09:00 in the Prague time zone:
-
-```json
-{
-    "version": 1,
-    "tasks": [
-        {
-            "id": "ping-morning",
-            "task": "App\\Task\\PingTask",
-            "cron": "0 9 * * *",
-            "timezone": "Europe/Prague"
-        }
-    ]
-}
-```

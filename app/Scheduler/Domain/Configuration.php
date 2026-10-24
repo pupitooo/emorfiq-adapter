@@ -6,7 +6,7 @@ namespace App\Scheduler\Domain;
 
 final readonly class Configuration
 {
-    public const int FORMAT_VERSION_1 = 1;
+    public const int FORMAT_VERSION = 1;
 
     /**
      * @param list<ScheduleDefinition> $tasks

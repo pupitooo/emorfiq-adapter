@@ -14,7 +14,7 @@ use stdClass;
 
 final readonly class JsonConfigurationParser
 {
-    private const string FIVE_FIELD_CRON_PATTERN = '/^\S+(?:\s+\S+){4}$/D';
+    private const string CRON_FORMAT_PATTERN = '/^\S+(?:\s+\S+){4}$/D';
 
     private const int REGEX_MATCH_FOUND = 1;
 
@@ -25,10 +25,10 @@ final readonly class JsonConfigurationParser
     {
         $data = $this->decode($json);
         $version = $data->version ?? null;
-        if ($version !== Configuration::FORMAT_VERSION_1) {
+        if ($version !== Configuration::FORMAT_VERSION) {
             throw new ConfigurationException(sprintf(
                 'Configuration version must be the integer %d.',
-                Configuration::FORMAT_VERSION_1,
+                Configuration::FORMAT_VERSION,
             ));
         }
 
@@ -124,7 +124,7 @@ final readonly class JsonConfigurationParser
      */
     private function validateCronFields(string $cron, string $path): void
     {
-        if (preg_match(self::FIVE_FIELD_CRON_PATTERN, trim($cron)) !== self::REGEX_MATCH_FOUND) {
+        if (preg_match(self::CRON_FORMAT_PATTERN, trim($cron)) !== self::REGEX_MATCH_FOUND) {
             throw new ConfigurationException($path . '.cron must contain exactly five fields.');
         }
     }
