@@ -42,8 +42,6 @@ final readonly class CronConfigurationParserTest
         '@daily * * * *',
         '@ daily',
         '* * * * * *',
-        '',
-        "\u{00A0}\u{2003}",
         '* * * *',
         '* * * * * 2026',
         '* * * * * * *',
@@ -61,6 +59,12 @@ final readonly class CronConfigurationParserTest
         '0,60 * * * *',
     ];
 
+    private const array EMPTY_EXPRESSIONS = [
+        '',
+        " \t\r\n",
+        "\u{00A0}\u{2003}",
+    ];
+
     /**
      * @throws ConfigurationException
      * @throws JsonException
@@ -69,6 +73,7 @@ final readonly class CronConfigurationParserTest
     {
         $this->acceptsValidCronExpressions();
         $this->acceptsRegisteredCronAlias();
+        $this->rejectsEmptyCronExpressions();
         $this->rejectsInvalidCronExpressions();
     }
 
@@ -111,23 +116,33 @@ final readonly class CronConfigurationParserTest
     private function rejectsInvalidCronExpressions(): void
     {
         foreach (self::INVALID_EXPRESSIONS as $expression) {
-            $this->assertInvalidCronExpression($expression);
+            $this->assertInvalidCronExpression(
+                $expression,
+                'tasks[0].cron must be a valid five-field expression or supported cron alias.',
+            );
         }
     }
 
     /**
      * @throws JsonException
      */
-    private function assertInvalidCronExpression(string $expression): void
+    private function rejectsEmptyCronExpressions(): void
+    {
+        foreach (self::EMPTY_EXPRESSIONS as $expression) {
+            $this->assertInvalidCronExpression($expression, 'tasks[0].cron must contain a non-whitespace character.');
+        }
+    }
+
+    /**
+     * @throws JsonException
+     */
+    private function assertInvalidCronExpression(string $expression, string $expectedMessage): void
     {
         $json = $this->configurationJson($expression);
         try {
             new JsonConfigurationParser()->parse($json);
         } catch (ConfigurationException $exception) {
-            if (
-                $exception->getMessage()
-                !== 'tasks[0].cron must be a valid five-field expression or supported cron alias.'
-            ) {
+            if ($exception->getMessage() !== $expectedMessage) {
                 throw new LogicException('Invalid cron expressions must identify their field.', previous: $exception);
             }
 

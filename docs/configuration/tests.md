@@ -64,6 +64,9 @@ original values. Extended expressions cover `L`, `W`, `LW`, `#`, and `?`.
 Unknown aliases (including `@reboot`) and malformed aliases are rejected.
 These tests validate syntax and stored values; they do not evaluate run dates.
 The existing empty-cron and six-field fixtures remain covered.
+Missing `cron` keys produce a required-field schema error. Empty strings and
+ASCII- or Unicode-whitespace-only cron values produce a non-empty field error;
+non-empty expressions with invalid syntax produce a cron syntax error.
 
 The [provider integration test](https://github.com/pupitooo/emorfiq-adapter/blob/main/tests/Integration/Scheduler/InMemorySchedulerConfigurationTest.php)
 covers loading an actual file, retaining the original configuration after the

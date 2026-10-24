@@ -32,11 +32,14 @@ identifiers, cron expressions, and time zone validity are checked on
 the mapped configuration. Empty-field validation uses `Nette\Utils\Strings::trim()`,
 including its Unicode whitespace support, without changing the stored values.
 
-Cron validation delegates empty expressions, field counts, syntax, and ranges
-to `dragonmantank/cron-expression`, including its supported aliases such as
-`@daily`. See [Cron syntax](cron.md) for accepted forms. There is no separate
-cron regular expression, alias list, or non-empty cron check. Validation trims
-surrounding whitespace locally without changing the stored cron value.
+Cron values first pass the shared non-empty field check, including Unicode
+whitespace. Missing keys are reported by the required-field schema; empty or
+whitespace-only values produce a non-empty field error. Non-empty cron values
+then pass field-count, syntax, range, and alias validation through
+`dragonmantank/cron-expression`. See [Cron syntax](cron.md) for accepted forms.
+There is no separate cron regular expression or alias list. Cron syntax
+validation trims surrounding ASCII whitespace locally without changing the
+stored value.
 
 ## Failures and alternative providers
 

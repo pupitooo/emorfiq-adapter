@@ -143,6 +143,7 @@ final readonly class JsonConfigurationParser
         $fields = [
             'id' => $definition->id,
             'task' => $definition->task,
+            'cron' => $definition->cron,
             'timezone' => $definition->timezone,
         ];
         foreach ($fields as $field => $value) {

@@ -25,7 +25,7 @@ final readonly class InvalidJsonConfigurationParserTest
         'empty-id.json' => 'tasks[0].id must contain a non-whitespace character.',
         'unicode-whitespace-id.json' => 'tasks[0].id must contain a non-whitespace character.',
         'empty-task.json' => 'tasks[0].task must contain a non-whitespace character.',
-        'empty-cron.json' => 'tasks[0].cron must be a valid five-field expression or supported cron alias.',
+        'empty-cron.json' => 'tasks[0].cron must contain a non-whitespace character.',
         'empty-timezone.json' => 'tasks[0].timezone must contain a non-whitespace character.',
         'cron-has-seconds.json' => 'tasks[0].cron must be a valid five-field expression or supported cron alias.',
         'invalid-timezone.json' => 'tasks[0].timezone is invalid: Europe/Unknown',

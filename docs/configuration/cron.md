@@ -63,7 +63,11 @@ Wildcards, lists, ranges, and steps can also be used within fields.
 
 ## Validation and execution limits
 
-The parser uses `CronExpression::isValidExpression()` to validate field counts,
+The required-field schema rejects a missing `cron` key. The shared non-empty
+field check rejects empty and whitespace-only cron values, including Unicode
+whitespace, with a specific non-empty field error.
+
+For non-empty values, the parser uses `CronExpression::isValidExpression()` to validate field counts,
 syntax, ranges, and aliases during configuration loading. It trims surrounding
 ASCII whitespace for validation and preserves the original value in the loaded
 definition. Invalid expressions raise `ConfigurationException` naming the cron
