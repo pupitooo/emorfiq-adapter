@@ -2,7 +2,7 @@
     "version": 1,
     "tasks": [
         {
-            "id": "   ",
+            "id": " \t\n\r\u0000\u000b ",
             "task": "App\\Task\\PingTask",
             "cron": "* * * * *"
         }

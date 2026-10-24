@@ -28,20 +28,62 @@ final readonly class InvalidJsonConfigurationParserTest
     ];
 
     private const array EXPECTED_SCHEMA_ERRORS = [
-        'missing-version.json' => ['code' => Message::MissingItem, 'path' => ['version']],
-        'unsupported-version.json' => ['code' => Message::TypeMismatch, 'path' => ['version']],
-        'version-is-string.json' => ['code' => Message::TypeMismatch, 'path' => ['version']],
-        'version-is-float.json' => ['code' => Message::TypeMismatch, 'path' => ['version']],
-        'missing-tasks.json' => ['code' => Message::MissingItem, 'path' => ['tasks']],
-        'missing-id.json' => ['code' => Message::MissingItem, 'path' => ['tasks', 0, 'id']],
-        'missing-task.json' => ['code' => Message::MissingItem, 'path' => ['tasks', 0, 'task']],
-        'missing-cron.json' => ['code' => Message::MissingItem, 'path' => ['tasks', 0, 'cron']],
-        'empty-id.json' => ['code' => Message::FailedAssertion, 'path' => ['tasks', 0, 'id']],
-        'task-is-number.json' => ['code' => Message::TypeMismatch, 'path' => ['tasks', 0, 'task']],
-        'null-timezone.json' => ['code' => Message::TypeMismatch, 'path' => ['tasks', 0, 'timezone']],
-        'empty-timezone.json' => ['code' => Message::FailedAssertion, 'path' => ['tasks', 0, 'timezone']],
-        'unknown-root-field.json' => ['code' => Message::UnexpectedItem, 'path' => ['enabled']],
-        'unknown-task-field.json' => ['code' => Message::UnexpectedItem, 'path' => ['tasks', 0, 'timeZone']],
+        'missing-version.json' => [
+            'code' => Message::MissingItem,
+            'path' => ['version'],
+        ],
+        'unsupported-version.json' => [
+            'code' => Message::TypeMismatch,
+            'path' => ['version'],
+        ],
+        'version-is-string.json' => [
+            'code' => Message::TypeMismatch,
+            'path' => ['version'],
+        ],
+        'version-is-float.json' => [
+            'code' => Message::TypeMismatch,
+            'path' => ['version'],
+        ],
+        'missing-tasks.json' => [
+            'code' => Message::MissingItem,
+            'path' => ['tasks'],
+        ],
+        'missing-id.json' => [
+            'code' => Message::MissingItem,
+            'path' => ['tasks', 0, 'id'],
+        ],
+        'missing-task.json' => [
+            'code' => Message::MissingItem,
+            'path' => ['tasks', 0, 'task'],
+        ],
+        'missing-cron.json' => [
+            'code' => Message::MissingItem,
+            'path' => ['tasks', 0, 'cron'],
+        ],
+        'empty-id.json' => [
+            'code' => Message::PatternMismatch,
+            'path' => ['tasks', 0, 'id'],
+        ],
+        'task-is-number.json' => [
+            'code' => Message::TypeMismatch,
+            'path' => ['tasks', 0, 'task'],
+        ],
+        'null-timezone.json' => [
+            'code' => Message::TypeMismatch,
+            'path' => ['tasks', 0, 'timezone'],
+        ],
+        'empty-timezone.json' => [
+            'code' => Message::PatternMismatch,
+            'path' => ['tasks', 0, 'timezone'],
+        ],
+        'unknown-root-field.json' => [
+            'code' => Message::UnexpectedItem,
+            'path' => ['enabled'],
+        ],
+        'unknown-task-field.json' => [
+            'code' => Message::UnexpectedItem,
+            'path' => ['tasks', 0, 'timeZone'],
+        ],
     ];
 
     public function run(): void
@@ -78,8 +120,14 @@ final readonly class InvalidJsonConfigurationParserTest
     private function reportsMultipleSchemaErrors(): void
     {
         $failure = $this->schemaFailure('multiple-invalid-fields.json');
-        $this->assertSchemaError($failure, ['code' => Message::MissingItem, 'path' => ['tasks', 0, 'id']]);
-        $this->assertSchemaError($failure, ['code' => Message::TypeMismatch, 'path' => ['tasks', 0, 'task']]);
+        $this->assertSchemaError($failure, [
+            'code' => Message::MissingItem,
+            'path' => ['tasks', 0, 'id'],
+        ]);
+        $this->assertSchemaError($failure, [
+            'code' => Message::TypeMismatch,
+            'path' => ['tasks', 0, 'task'],
+        ]);
     }
 
     private function schemaFailure(string $fixture): ValidationException
@@ -87,7 +135,10 @@ final readonly class InvalidJsonConfigurationParserTest
         $failure = $this->parseFailure($fixture);
         $previous = $failure->getPrevious();
         if (! $previous instanceof ValidationException) {
-            throw new LogicException('Fixture "' . $fixture . '" must preserve its schema failure.', previous: $failure);
+            throw new LogicException(
+                'Fixture "' . $fixture . '" must preserve its schema failure.',
+                previous: $failure,
+            );
         }
 
         if (! str_starts_with($failure->getMessage(), 'Invalid scheduler configuration: ')) {
@@ -108,7 +159,10 @@ final readonly class InvalidJsonConfigurationParserTest
             }
         }
 
-        throw new LogicException('The schema failure must identify the expected field and error code.', previous: $failure);
+        throw new LogicException(
+            'The schema failure must identify the expected field and error code.',
+            previous: $failure,
+        );
     }
 
     private function parseFailure(string $fixture): ConfigurationException

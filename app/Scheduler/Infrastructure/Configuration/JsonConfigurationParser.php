@@ -22,6 +22,9 @@ final readonly class JsonConfigurationParser
 {
     private const string CRON_FORMAT_PATTERN = '/^\S+(?:\s+\S+){4}$/D';
 
+    // Require a character outside PHP trim()'s whitespace set, including in multiline values.
+    private const string NON_EMPTY_STRING_PATTERN = '(?s).*[^ \t\n\r\x00\x0B].*';
+
     private const int REGEX_MATCH_FOUND = 1;
 
     /**
@@ -121,10 +124,7 @@ final readonly class JsonConfigurationParser
 
     private function nonEmptyString(): StringType
     {
-        return Expect::string()->assert(
-            static fn (string $value): bool => trim($value) !== '',
-            'Value must contain a non-whitespace character',
-        );
+        return Expect::string()->pattern(self::NON_EMPTY_STRING_PATTERN);
     }
 
     /**
