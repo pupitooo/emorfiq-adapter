@@ -45,13 +45,13 @@ services:
     profiles: ["docs"]
     # Match the Material for MkDocs image and visual theme used by E2B.
     image: squidfunk/mkdocs-material@sha256:51b87149d227691486b5f08993d28c65ca7e4990010664b697265b8e6fcd5287
-    command: ["serve", "--strict", "--config-file", "mkdocs.yml", "--dev-addr", "0.0.0.0:8000"]
+    command: ["serve", "--strict", "--config-file", "mkdocs.local.yml", "--dev-addr", "0.0.0.0:8000"]
     user: "65532:65532"
-    working_dir: /docs
+    working_dir: /source/docs/site
     environment:
       DOCS_SITE_URL: ${DOCS_SITE_URL:-https://pupitooo.github.io/emorfiq-adapter/}
     volumes:
-      - ./docs/site:/docs:ro
+      - .:/source:ro
     ports:
       - "127.0.0.1:${DOCS_PORT:-8089}:8000"
     restart: unless-stopped

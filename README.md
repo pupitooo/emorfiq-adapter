@@ -81,13 +81,15 @@ make docs
 
 Open **[http://localhost:8089](http://localhost:8089)**. Only the documentation
 container starts; it does not require the web server or scheduler. To select
-another port, run `DOCS_PORT=8091 make docs`. Changes under `docs/site/` rebuild
-the preview and refresh the browser automatically. Stop it with `make docs-stop`.
+another port, run `DOCS_PORT=8091 make docs`. Changes to `README.md` and the
+documentation Markdown rebuild the preview and refresh the browser automatically.
+Stop it with `make docs-stop`.
 
 The site uses the same Material for MkDocs image, theme, navigation features,
-and system fonts as the E2B documentation. Its first page documents only the
-[JSON scheduler configuration](docs/site/content/index.md). Other files under
-`docs/` are outside the published site.
+and system fonts as the E2B documentation. Its home page is generated directly
+from this README, followed by the
+[JSON scheduler configuration](docs/site/content/scheduler-configuration.md).
+Other files under `docs/` are outside the published site.
 
 | Command | Purpose |
 | --- | --- |

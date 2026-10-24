@@ -1,9 +1,13 @@
 site_name: Emorfiq Scheduler Adapter
-site_description: JSON scheduler configuration reference
+site_description: Project overview and JSON scheduler configuration reference
 site_url: !ENV [DOCS_SITE_URL, 'https://pupitooo.github.io/emorfiq-adapter/']
 docs_dir: content
 site_dir: /tmp/emorfiq-docs-site
 strict: true
+hooks:
+  - hooks.py
+watch:
+  - ../../README.md
 theme:
   name: material
   language: en
@@ -16,7 +20,11 @@ plugins:
   - search
 markdown_extensions:
   - tables
-  - fenced_code
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - toc:
       permalink: true
 validation:
@@ -28,8 +36,9 @@ validation:
     anchors: warn
     unrecognized_links: warn
 nav:
+  - Home: index.md
   - Configuration:
-      - JSON structure: index.md
+      - JSON structure: scheduler-configuration.md
 extra:
   social:
     - icon: fontawesome/brands/github
