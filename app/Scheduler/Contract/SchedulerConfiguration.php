@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 namespace App\Scheduler\Contract;
 
+use App\Scheduler\Domain\Configuration;
+use App\Scheduler\Exception\ConfigurationException;
+
 /**
- * Application-owned contract for the adapter's job configuration.
- *
- * Job definitions, access methods, and implementations will be designed later.
+ * Source-independent contract for providers of typed scheduler configuration.
  */
-interface SchedulerConfiguration {}
+interface SchedulerConfiguration
+{
+    /**
+     * @throws ConfigurationException When configuration cannot be loaded.
+     */
+    public function getConfiguration(): Configuration;
+}

@@ -1,0 +1,10 @@
+{
+    "version": 1,
+    "tasks": [
+        {
+            "id": "\u00a0\u2003\u3000",
+            "task": "App\\Task\\PingTask",
+            "cron": "* * * * *"
+        }
+    ]
+}

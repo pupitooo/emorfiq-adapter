@@ -10,6 +10,8 @@ use Override;
 
 final readonly class CrunzAdapter implements Adapter
 {
+    public function __construct() {}
+
     #[Override]
     public function run(): void
     {
