@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Task;
 
-use App\Task\PingTask;
+use App\Task\Execution\PingTask;
 use LogicException;
 use Monolog\Handler\TestHandler;
 use Monolog\Level;

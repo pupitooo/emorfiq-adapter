@@ -2,7 +2,7 @@
     "version": 1,
     "tasks": [
         {
-            "task": "App\\Task\\PingTask",
+            "task": "App\\Task\\Execution\\PingTask",
             "cron": "* * * * *"
         }
     ]

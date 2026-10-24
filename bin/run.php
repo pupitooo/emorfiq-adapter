@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 use App\Scheduler\Infrastructure\Configuration\InMemorySchedulerConfiguration;
 use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
-use App\Task\PingTask;
-use Psr\Log\LoggerInterface;
+use App\Task\Infrastructure\Symfony\SymfonyTaskResolver;
+use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
 
-require __DIR__ . '/../vendor/autoload.php';
+$projectDir = dirname(__DIR__);
 
-/** @var LoggerInterface $logger */
-$logger = require __DIR__ . '/../config/logger.php';
+require $projectDir . '/vendor/autoload.php';
 
-$configuration = new InMemorySchedulerConfiguration(__DIR__ . '/../config/scheduler.json');
-$adapter = new LaravelAdapter(new PingTask($logger), $configuration);
+$container = new ContainerBuilder();
+$loader = new PhpFileLoader($container, new FileLocator($projectDir . '/config'));
+$loader->load('services.php');
+$container->compile();
+
+$configuration = new InMemorySchedulerConfiguration($projectDir . '/config/scheduler.json');
+$adapter = new LaravelAdapter(new SymfonyTaskResolver($container), $configuration);
 
 $adapter->run();

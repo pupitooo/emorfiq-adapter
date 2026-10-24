@@ -3,13 +3,19 @@
 declare(strict_types=1);
 
 use Tests\Integration\Scheduler\InMemorySchedulerConfigurationTest;
+use Tests\Integration\Scheduler\LaravelAdapterTest;
+use Tests\Integration\Task\SymfonyTaskResolverTest;
 use Tests\Unit\Scheduler\InvalidJsonConfigurationParserTest;
 use Tests\Unit\Scheduler\JsonConfigurationParserTest;
 use Tests\Unit\Task\PingTaskTest;
 
-require __DIR__ . '/../vendor/autoload.php';
+$projectDir = dirname(__DIR__);
+
+require $projectDir . '/vendor/autoload.php';
 
 new PingTaskTest()->run();
 new JsonConfigurationParserTest()->run();
 new InvalidJsonConfigurationParserTest()->run();
 new InMemorySchedulerConfigurationTest()->run();
+new SymfonyTaskResolverTest()->run();
+new LaravelAdapterTest()->run();

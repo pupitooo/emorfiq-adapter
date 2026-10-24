@@ -3,7 +3,7 @@
     "tasks": [
         {
             "id": "ping",
-            "task": "App\\Task\\PingTask",
+            "task": "App\\Task\\Execution\\PingTask",
             "cron": " \t\n "
         }
     ]

@@ -3,24 +3,24 @@
     "tasks": [
         {
             "id": "ping-every-minute",
-            "task": "App\\Task\\PingTask",
+            "task": "App\\Task\\Execution\\PingTask",
             "cron": "* * * * *"
         },
         {
             "id": "ping-weekday-morning",
-            "task": "App\\Task\\PingTask",
+            "task": "App\\Task\\Execution\\PingTask",
             "cron": "0 9 * * 1-5",
             "timezone": "Europe/Prague"
         },
         {
             "id": "ping-quarter-hour-weekdays",
-            "task": "App\\Task\\PingTask",
+            "task": "App\\Task\\Execution\\PingTask",
             "cron": "*/15 9-17 * * 1-5",
             "timezone": "Europe/Prague"
         },
         {
             "id": "ping-twice-monthly",
-            "task": "App\\Task\\PingTask",
+            "task": "App\\Task\\Execution\\PingTask",
             "cron": "30 18 1,15 * *",
             "timezone": "America/New_York"
         }

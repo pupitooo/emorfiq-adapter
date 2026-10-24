@@ -47,7 +47,7 @@ services:
     image: squidfunk/mkdocs-material@sha256:51b87149d227691486b5f08993d28c65ca7e4990010664b697265b8e6fcd5287
     command: ["serve", "--strict", "--config-file", "mkdocs.local.yml", "--dev-addr", "0.0.0.0:8000"]
     user: "65532:65532"
-    working_dir: /source/docs/site
+    working_dir: /source/tools/docs
     environment:
       DOCS_SITE_URL: ${DOCS_SITE_URL:-https://pupitooo.github.io/emorfiq-adapter/}
     volumes:
