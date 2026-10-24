@@ -16,7 +16,6 @@ events are eligible at the current time. The adapter uses those results:
 ```php
 $schedule = $this->createSchedule();
 $events = $schedule->dueEvents($this->application);
-$failures = [];
 foreach ($events as $event) {
     if (! $event->filtersPass($this->application)) {
         continue;
@@ -24,12 +23,10 @@ foreach ($events as $event) {
 
     try {
         $event->run($this->application);
-    } catch (TaskExecutionException $failure) {
-        $failures[] = $failure;
+    } catch (TaskExecutionException) {
+        // TaskExecutor has already logged the failure.
+        continue;
     }
-}
-if ($failures !== []) {
-    throw new SchedulerRunException($failures);
 }
 ```
 
@@ -124,10 +121,10 @@ $schedule->call(function () use ($definition): void {
     ->timezone($definition->timezone);
 ```
 
-Task resolution occurs inside the callback. Task failures are logged and collected
-while later due events continue. After processing the plan, the adapter reports
-all failures to the CLI. See [Task execution](task-execution.md) for the lifecycle
-records, exception boundaries, and exit status.
+Task resolution occurs inside the callback. Task failures are logged once while
+later due events continue. Like Laravel's runner, the adapter completes normally
+after reported task failures. See [Task execution](task-execution.md) for the
+lifecycle records, exception boundaries, and exit status.
 
 `run()` delegates selection to Laravel and invokes only the selected events;
 see [Execution cycle](#execution-cycle) for the runner flow and
@@ -157,7 +154,7 @@ placeholders.
 
 `LaravelAdapterTest` verifies mapping of identifiers, cron expressions, aliases,
 and time zones without resolving tasks. Existing execution tests cover task
-order, empty configurations, and propagation of task resolution failures.
+order, empty configurations, and reporting of task resolution failures.
 
 `DueEventsTest` freezes Laravel's clock and runs actual Symfony task services.
 It covers selection across consecutive minutes, Prague and New York time zones

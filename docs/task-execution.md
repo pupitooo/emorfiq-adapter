@@ -55,15 +55,31 @@ the schedule definition and original cause. It does not retry or roll back work.
 Tasks should throw when they cannot complete successfully; swallowing their own
 failure makes the scheduler report successful completion.
 
-`LaravelAdapter` collects these task failures and continues the remaining due
-events in configuration order. Tasks are treated as independent; their ordering
-does not express dependencies. After processing the plan, it throws
-`SchedulerRunException` containing all failures in execution order.
+`LaravelAdapter` catches these already logged task failures and continues the
+remaining due events in configuration order. Tasks are treated as independent;
+their ordering does not express dependencies. No aggregate exception or additional
+STDERR summary is produced.
 
-`bin/run.php` catches that aggregate, writes a summary with failed schedule IDs
-to STDERR, and exits with status `1`. Successful execution, including no due
-work, exits with status `0`. Detailed errors are already in the JSON log;
-`supercronic` can observe the unsuccessful process exit.
+### Process exit status
+
+A completed scheduler invocation exits with status `0`, including when individual
+tasks fail or no tasks are due. This follows Laravel
+[`schedule:run`](https://github.com/illuminate/console/blob/13.x/Scheduling/ScheduleRunCommand.php):
+it reports task exceptions and continues; its `handle()` returns no failure code.
+Laravel
+[`Command::execute()`](https://github.com/illuminate/console/blob/13.x/Command.php)
+converts that return value to status `0`. The status indicates that the scheduler
+processed the plan; task success must be checked through lifecycle records.
+
+Returning `1` instead would mark the entire invocation as failed to the caller.
+[Supercronic](https://github.com/aptible/supercronic/blob/master/cron/cron.go)
+would emit an error for that invocation, even with the configured `-quiet` flag.
+It would not automatically retry the tasks or stop the scheduler. The current
+Docker health check checks only that supercronic is running, and the container
+restart policy applies to the container process, not its PHP child. A shell, CI
+job, or other caller could also use a nonzero status to trigger failure handling.
+
+### Infrastructure failures
 
 Configuration, container initialization, scheduler infrastructure, and lifecycle
 logger errors propagate immediately. The adapter catches only task failure

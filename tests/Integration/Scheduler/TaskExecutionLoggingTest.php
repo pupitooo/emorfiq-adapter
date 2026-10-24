@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Tests\Integration\Scheduler;
 
 use App\Scheduler\Domain\ScheduleDefinition;
-use App\Scheduler\Exception\SchedulerRunException;
-use App\Scheduler\Exception\TaskExecutionException;
 use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
 use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use App\Task\Execution\PingTask;
@@ -81,7 +79,7 @@ final readonly class TaskExecutionLoggingTest
             return;
         }
 
-        throw new LogicException('Lifecycle logger failures must abort without becoming task failure aggregates.');
+        throw new LogicException('Lifecycle logger failures must abort the scheduler run.');
     }
 
     /**
@@ -110,44 +108,8 @@ final readonly class TaskExecutionLoggingTest
             new ScheduleDefinition('throws-error', ErrorTask::class, '* * * * *'),
             new ScheduleDefinition('following', LoggingTask::class, '* * * * *'),
         ];
-        try {
-            $this->adapter($path, $definitions)->run();
-        } catch (SchedulerRunException $exception) {
-            $this->assertFailures($exception);
-            $this->assertFailureRecords($path);
-
-            return;
-        }
-
-        throw new LogicException('Task failures must be reported after all due tasks have run.');
-    }
-
-    private function assertFailures(SchedulerRunException $exception): void
-    {
-        $failures = $exception->failures;
-        if (count($failures) !== 3 || $exception->getPrevious() !== $failures[0]) {
-            throw new LogicException('Run failure must retain every individual failure in order.');
-        }
-
-        if ($exception->getMessage() !== '3 scheduled task(s) failed: throws-exception, missing, throws-error.') {
-            throw new LogicException('Run summary must identify every failed schedule in order.');
-        }
-
-        $this->assertOriginalCauses($failures);
-    }
-
-    /**
-     * @param array{TaskExecutionException, TaskExecutionException, TaskExecutionException} $failures
-     */
-    private function assertOriginalCauses(array $failures): void
-    {
-        if (
-            $failures[0]->getPrevious()?->getMessage() !== 'Task execution failed.'
-            || ! $failures[1]->getPrevious() instanceof LogicException
-            || ! $failures[2]->getPrevious() instanceof Error
-        ) {
-            throw new LogicException('Run failure must retain task identifiers and original causes.');
-        }
+        $this->adapter($path, $definitions)->run();
+        $this->assertFailureRecords($path);
     }
 
     private function assertFailureRecords(string $path): void
@@ -166,18 +128,20 @@ final readonly class TaskExecutionLoggingTest
 
         $this->assertLifecycle($records[6], 'started', 'following', LoggingTask::class, 200);
         $this->assertLifecycle($records[8], 'completed', 'following', LoggingTask::class, 200);
-        $this->assertExceptionDetails($records[1]);
+        $this->assertExceptionDetails($records[1], \RuntimeException::class, 'Task execution failed.');
+        $this->assertExceptionDetails($records[3], LogicException::class, 'Task is not registered: ' . self::class);
+        $this->assertExceptionDetails($records[5], Error::class, 'Task error.');
     }
 
     /**
      * @param Record $record
      */
-    private function assertExceptionDetails(array $record): void
+    private function assertExceptionDetails(array $record, string $class, string $message): void
     {
         $exception = $record['context']['exception'] ?? null;
         if (
-            ! is_array($exception) || ($exception['class'] ?? null) !== \RuntimeException::class
-            || ($exception['message'] ?? null) !== 'Task execution failed.'
+            ! is_array($exception) || ($exception['class'] ?? null) !== $class
+            || ($exception['message'] ?? null) !== $message
             || ! is_array($exception['trace'] ?? null) || $exception['trace'] === []
         ) {
             throw new LogicException('Failure logs must retain exception class, message, and stack trace.');

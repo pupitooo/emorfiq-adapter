@@ -50,7 +50,7 @@ The Symfony framework and YAML loader are not required by this PHP configuration
 that does not implement `Task`. Container resolution failures are wrapped in
 `LogicException` with the original exception preserved as the previous exception.
 
-During scheduled execution these failures are logged and collected like task
+During scheduled execution these failures are logged and handled like task
 execution failures; see [Task execution](task-execution.md).
 
 For the complete invocation flow and current limitations, see

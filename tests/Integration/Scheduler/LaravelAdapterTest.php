@@ -6,7 +6,6 @@ namespace Tests\Integration\Scheduler;
 
 use App\Scheduler\Application\TaskExecutor;
 use App\Scheduler\Domain\ScheduleDefinition;
-use App\Scheduler\Exception\SchedulerRunException;
 use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
 use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use App\Task\Execution\PingTask;
@@ -34,7 +33,7 @@ final readonly class LaravelAdapterTest
             $this->mapsDefinitionsWithoutResolvingTasks();
             $this->runsEveryMinuteDefinitions($path);
             $this->runsNothingForEmptyConfiguration();
-            $this->rejectsUnregisteredTask();
+            $this->reportsUnregisteredTask($path);
         } finally {
             if (! unlink($path)) {
                 throw new LogicException('Unable to remove task execution log.');
@@ -118,27 +117,22 @@ final readonly class LaravelAdapterTest
     /**
      * @throws Exception
      */
-    private function rejectsUnregisteredTask(): void
+    private function reportsUnregisteredTask(string $path): void
     {
-        $resolver = new SymfonyTaskResolver(new ContainerBuilder());
+        file_put_contents($path, '');
         $configuration = SchedulerFixtures::configuration([
-            new ScheduleDefinition('missing', LoggingTask::class, '* * * * *'),
+            new ScheduleDefinition('missing', self::class, '* * * * *'),
         ]);
-        try {
-            $executor = new TaskExecutor($resolver, new NullLogger());
-            new LaravelAdapter($executor, $configuration, new SchedulerApplication())->run();
-        } catch (SchedulerRunException $exception) {
-            if (
-                $exception->failures[0]->getPrevious()?->getMessage()
-                !== 'Task is not registered: ' . LoggingTask::class
-            ) {
-                throw new LogicException('The adapter must propagate task resolution failures.', previous: $exception);
-            }
-
-            return;
+        $executor = TaskServices::executor(TaskServices::container($path));
+        new LaravelAdapter($executor, $configuration, new SchedulerApplication())->run();
+        $records = LogRecords::read($path);
+        $exception = $records[1]['context']['exception'] ?? null;
+        if (
+            count($records) !== 2 || ! is_array($exception)
+            || ($exception['message'] ?? null) !== 'Task is not registered: ' . self::class
+        ) {
+            throw new LogicException('Task resolution failures must be logged without aborting the scheduler run.');
         }
-
-        throw new LogicException('The adapter must reject tasks without registered services.');
     }
 
     private function temporaryFile(): string

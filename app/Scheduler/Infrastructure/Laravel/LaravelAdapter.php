@@ -7,7 +7,6 @@ namespace App\Scheduler\Infrastructure\Laravel;
 use App\Scheduler\Application\TaskExecutor;
 use App\Scheduler\Contract\Adapter;
 use App\Scheduler\Contract\SchedulerConfiguration;
-use App\Scheduler\Exception\SchedulerRunException;
 use App\Scheduler\Exception\TaskExecutionException;
 use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use Exception;
@@ -43,17 +42,13 @@ final readonly class LaravelAdapter implements Adapter
      */
     private function runEvents(Collection $events): void
     {
-        $failures = [];
         foreach ($events as $event) {
             try {
                 $this->runEvent($event);
-            } catch (TaskExecutionException $failure) {
-                $failures[] = $failure;
+            } catch (TaskExecutionException) {
+                // TaskExecutor has already reported this failure through the shared logger.
+                continue;
             }
-        }
-
-        if ($failures !== []) {
-            throw new SchedulerRunException($failures);
         }
     }
 

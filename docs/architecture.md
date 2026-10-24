@@ -70,8 +70,9 @@ events. Task construction remains in Symfony.
 Each CLI invocation builds a plan and executes its currently due callbacks in
 configuration order. Cron evaluation, time zones, aliases, and event conditions
 are delegated to Laravel Scheduler. Task failures are logged while remaining
-due events continue. The CLI reports the collected failures with exit status `1`
-after the plan finishes; infrastructure errors still abort immediately.
+due events continue. Like Laravel's runner, the CLI completes normally after
+reported task failures; infrastructure errors still abort immediately. See
+[Task execution](task-execution.md#process-exit-status) for exit status semantics.
 
 Functional mutex locking remains pending. Mutex placeholders throw
 `LogicException('Not Implemented')` if a lock operation is requested.
