@@ -1,0 +1,41 @@
+includes:
+    - phar://phpstan.phar/conf/bleedingEdge.neon
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+    - vendor/phpstan/phpstan-deprecation-rules/rules.neon
+    - vendor/shipmonk/phpstan-rules/rules.neon
+
+parameters:
+    level: max
+    phpVersion: 80500
+    paths:
+        - app
+        - bin
+        - config
+        - tools/log-viewer
+        - tests
+        - ecs.php
+    tmpDir: /tmp/emorfiq-phpstan
+    scanDirectories:
+        - vendor/symplify/easy-coding-standard/vendor/friendsofphp/php-cs-fixer/src
+        - vendor/squizlabs/php_codesniffer/src
+    checkUninitializedProperties: true
+    checkBenevolentUnionTypes: true
+    checkMissingCallableSignature: true
+    checkTooWideReturnTypesInProtectedAndPublicMethods: true
+    checkTooWideThrowTypesInProtectedAndPublicMethods: true
+    checkMissingOverrideMethodAttribute: true
+    reportPossiblyNonexistentGeneralArrayOffset: true
+    reportPossiblyNonexistentConstantArrayOffset: true
+    reportAnyTypeWideningInVarTag: true
+    reportAlwaysTrueInLastCondition: true
+    rememberPossiblyImpureFunctionValues: false
+    exceptions:
+        implicitThrows: false
+        checkedExceptionClasses:
+            - Exception
+        uncheckedExceptionClasses:
+            - LogicException
+        check:
+            missingCheckedExceptionInThrows: true
+            throwTypeCovariance: true
+            tooWideImplicitThrowType: true

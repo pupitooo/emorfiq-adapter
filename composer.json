@@ -1,0 +1,44 @@
+{
+    "name": "emorfiq/scheduler-adapter",
+    "description": "PHP adapter for scheduler",
+    "type": "project",
+    "require": {
+        "php": "~8.5.0",
+        "monolog/monolog": "^3.0",
+        "psr/log": "^3.0"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan-deprecation-rules": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.1",
+        "shipmonk/phpstan-rules": "^4.4",
+        "slevomat/coding-standard": "^8.31",
+        "symplify/easy-coding-standard": "^13.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "DevTools\\LogViewer\\": "tools/log-viewer/src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": { "Tests\\": "tests/" }
+    },
+    "scripts": {
+        "check": [
+            "@php vendor/bin/phpstan analyse --no-progress --memory-limit=512M",
+            "@php vendor/bin/ecs check --no-progress-bar",
+            "@test"
+        ],
+        "test": "@php tests/run.php",
+        "fix": "@php vendor/bin/ecs check --fix --no-progress-bar"
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": false
+        },
+        "platform": { "php": "8.5.0" },
+        "sort-packages": true,
+        "optimize-autoloader": true
+    }
+}
