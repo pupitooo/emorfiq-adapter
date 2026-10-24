@@ -1,4 +1,4 @@
-.PHONY: up down logs psql test check docs docs-stop docs-check docs-export
+.PHONY: up down logs psql migrate migration-status test check docs docs-stop docs-check docs-export
 
 up:
 	@docker compose up -d --build --wait
@@ -13,6 +13,12 @@ logs:
 
 psql:
 	@docker compose exec postgres sh -c 'exec psql -X --username="$${POSTGRES_USER}" --dbname="$${POSTGRES_DB}"'
+
+migrate:
+	@docker compose exec -T postgres sh -c 'exec psql -X --set=ON_ERROR_STOP=on --username="$${POSTGRES_USER}" --dbname="$${POSTGRES_DB}" --file=/migrations/migrate.sql'
+
+migration-status:
+	@docker compose exec -T postgres sh -c 'exec psql -X --set=ON_ERROR_STOP=on --username="$${POSTGRES_USER}" --dbname="$${POSTGRES_DB}" --command="TABLE schema_migrations"'
 
 test:
 	@docker compose build check
