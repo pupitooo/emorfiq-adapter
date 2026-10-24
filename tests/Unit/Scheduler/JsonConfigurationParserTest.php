@@ -114,11 +114,15 @@ final readonly class JsonConfigurationParserTest
 
     private function assertSchedule(?ScheduleDefinition $actual, ScheduleDefinition $expected): void
     {
+        if ($actual === null) {
+            throw new LogicException('Schedule "' . $expected->id . '" must be present in the parsed configuration.');
+        }
+
         if (
-            $actual?->id !== $expected->id
-            || $actual?->task !== $expected->task
-            || $actual?->cron !== $expected->cron
-            || $actual?->timezone !== $expected->timezone
+            $actual->id !== $expected->id
+            || $actual->task !== $expected->task
+            || $actual->cron !== $expected->cron
+            || $actual->timezone !== $expected->timezone
         ) {
             throw new LogicException('Schedule "' . $expected->id . '" must preserve all documented field values.');
         }

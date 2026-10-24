@@ -35,7 +35,7 @@ final readonly class InMemorySchedulerConfigurationTest
         if (
             $configuration->version !== 1
             || count($configuration->tasks) !== 4
-            || ($configuration->tasks[0] ?? null)?->id !== 'ping-every-minute'
+            || $configuration->tasks[0]->id !== 'ping-every-minute'
         ) {
             throw new LogicException('The provider must return the configuration loaded from the supplied file.');
         }
@@ -81,7 +81,10 @@ final readonly class InMemorySchedulerConfigurationTest
     {
         $failure = $this->loadFailure($path);
         if ($failure->getMessage() !== 'Scheduler configuration file is not readable: ' . $path) {
-            throw new LogicException('The provider must identify the unreadable configuration path.', previous: $failure);
+            throw new LogicException(
+                'The provider must identify the unreadable configuration path.',
+                previous: $failure,
+            );
         }
     }
 

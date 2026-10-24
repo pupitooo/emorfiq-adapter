@@ -25,6 +25,9 @@ final readonly class InMemorySchedulerConfiguration implements SchedulerConfigur
         $this->configuration = new JsonConfigurationParser()->parse($json);
     }
 
+    /**
+     * @throws void
+     */
     #[Override]
     public function getConfiguration(): Configuration
     {

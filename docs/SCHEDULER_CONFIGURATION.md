@@ -79,7 +79,7 @@ Full cron expression validation and resolving task classes into executable
 instances remain part of the later scheduler integration.
 
 The database provider exposes the same method but currently throws
-`LogicException('Not Implemented')`.
+`ConfigurationException('Not Implemented')`.
 
 ## Root object
 

@@ -27,7 +27,9 @@ final readonly class LaravelAdapter implements Adapter
         // Prototype: execute each definition once; cron evaluation belongs to scheduler integration.
         foreach ($this->configuration->getConfiguration()->tasks as $definition) {
             if ($definition->task !== PingTask::class) {
-                throw new LogicException('Unsupported task in schedule "' . $definition->id . '": ' . $definition->task);
+                throw new LogicException(
+                    'Unsupported task in schedule "' . $definition->id . '": ' . $definition->task,
+                );
             }
 
             $this->pingTask->run();

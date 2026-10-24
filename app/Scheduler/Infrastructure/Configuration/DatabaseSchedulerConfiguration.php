@@ -6,7 +6,7 @@ namespace App\Scheduler\Infrastructure\Configuration;
 
 use App\Scheduler\Contract\SchedulerConfiguration;
 use App\Scheduler\Domain\Configuration;
-use LogicException;
+use App\Scheduler\Exception\ConfigurationException;
 use Override;
 
 /**
@@ -16,9 +16,12 @@ use Override;
  */
 final readonly class DatabaseSchedulerConfiguration implements SchedulerConfiguration
 {
+    /**
+     * @throws ConfigurationException Until database configuration loading is implemented.
+     */
     #[Override]
     public function getConfiguration(): Configuration
     {
-        throw new LogicException('Not Implemented');
+        throw new ConfigurationException('Not Implemented');
     }
 }

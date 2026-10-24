@@ -48,7 +48,10 @@ final readonly class JsonConfigurationParser
         try {
             $data = json_decode($json, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
-            throw new ConfigurationException('Invalid scheduler JSON: ' . $exception->getMessage(), previous: $exception);
+            throw new ConfigurationException(
+                'Invalid scheduler JSON: ' . $exception->getMessage(),
+                previous: $exception,
+            );
         }
 
         if (! $data instanceof stdClass) {

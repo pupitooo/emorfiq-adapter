@@ -73,7 +73,7 @@ flowchart LR
   Its healthcheck monitors the cron process.
 - `SchedulerConfiguration::getConfiguration()` returns an immutable `Configuration` with typed task definitions.
   `InMemorySchedulerConfiguration` loads and validates `config/scheduler.json` once during construction.
-  `DatabaseSchedulerConfiguration` exposes the same method and currently throws `LogicException('Not Implemented')`.
+  `DatabaseSchedulerConfiguration` exposes the same method and currently throws `ConfigurationException('Not Implemented')`.
   `bin/run.php` supplies the in-memory provider to `LaravelAdapter`.
   The adapter runs each configured `PingTask` definition once per invocation; an empty task list runs nothing.
   Other task classes raise `LogicException`. Cron and time zone evaluation remain pending.
