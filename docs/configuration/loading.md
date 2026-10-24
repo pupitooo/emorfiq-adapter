@@ -27,10 +27,12 @@ values to the constructors of `Configuration` and `ScheduleDefinition`.
 The domain objects remain independent of Nette.
 
 Small JSON container checks preserve the distinction between objects, arrays,
-and null before Nette normalization. Non-empty fields, unique schedule
+and null before Nette normalization. String values, unique schedule
 identifiers, cron expressions, and time zone validity are checked on
-the mapped configuration. Empty-field validation uses `Nette\Utils\Strings::trim()`,
-including its Unicode whitespace support, without changing the stored values.
+the mapped configuration. String validation uses `Nette\Utils\Strings::trim()`,
+including its Unicode whitespace support, to detect empty values and surrounding
+whitespace. Both are rejected without changing the stored values; see
+[String validation](format.md#string-validation).
 
 Cron values first pass the shared non-empty field check, including Unicode
 whitespace. Missing keys are reported by the required-field schema; empty or
@@ -38,13 +40,13 @@ whitespace-only values produce a non-empty field error. Non-empty cron values
 then pass field-count, syntax, range, and alias validation through
 `dragonmantank/cron-expression`. See [Cron syntax](cron.md) for accepted forms.
 There is no separate cron regular expression or alias list. Cron syntax
-validation trims surrounding ASCII whitespace locally without changing the
-stored value.
+validation receives the original string. Returned definitions retain accepted
+values unchanged, so adapters can use them directly without normalization.
 
 ## Failures and alternative providers
 
 Unreadable files, invalid JSON, unsupported versions, invalid field types,
-empty required strings, duplicate identifiers, invalid time zones, and cron
+empty strings or surrounding whitespace, duplicate identifiers, invalid time zones, and cron
 expressions with invalid syntax, ranges, field counts, or unknown aliases raise
 `ConfigurationException`.
 Schema failures preserve `Nette\Schema\ValidationException` as their previous

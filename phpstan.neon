@@ -5,6 +5,11 @@ includes:
     - vendor/shipmonk/phpstan-rules/rules.neon
 
 parameters:
+    shipmonkRules:
+        forbidCheckedExceptionInCallable:
+            # Scheduler stores callbacks and propagates their failures when events run.
+            allowedCheckedExceptionCallables:
+                Illuminate\Console\Scheduling\Schedule::call: 0
     level: max
     phpVersion: 80500
     paths:

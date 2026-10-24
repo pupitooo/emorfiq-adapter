@@ -42,6 +42,7 @@ nav:
   - Intro: index.md
   - Application:
       - Architecture: architecture.md
+      - Laravel Scheduler: laravel-scheduler.md
       - Task services: task-services.md
   - Configuration:
       - JSON format: configuration/format.md

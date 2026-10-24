@@ -6,6 +6,7 @@ namespace Tests\Unit\Scheduler;
 
 use App\Scheduler\Exception\ConfigurationException;
 use App\Scheduler\Infrastructure\Configuration\JsonConfigurationParser;
+use App\Task\Execution\PingTask;
 use DateInvalidTimeZoneException;
 use JsonException;
 use LogicException;
@@ -15,6 +16,13 @@ use Tests\Support\SchedulerFixtures;
 
 final readonly class InvalidJsonConfigurationParserTest
 {
+    private const array VALID_TASK = [
+        'id' => 'ping',
+        'task' => PingTask::class,
+        'cron' => '* * * * *',
+        'timezone' => 'Europe/Prague',
+    ];
+
     private const array EXPECTED_ERRORS = [
         'root-is-array.json' => 'Scheduler configuration must be a JSON object.',
         'tasks-is-object.json' => 'Configuration tasks must be a JSON array.',
@@ -27,6 +35,7 @@ final readonly class InvalidJsonConfigurationParserTest
         'empty-task.json' => 'tasks[0].task must contain a non-whitespace character.',
         'empty-cron.json' => 'tasks[0].cron must contain a non-whitespace character.',
         'empty-timezone.json' => 'tasks[0].timezone must contain a non-whitespace character.',
+        'surrounding-whitespace.json' => 'tasks[0].id must not contain surrounding whitespace.',
         'cron-has-seconds.json' => 'tasks[0].cron must be a valid five-field expression or supported cron alias.',
         'invalid-timezone.json' => 'tasks[0].timezone is invalid: Europe/Unknown',
         'duplicate-ids.json' => 'Duplicate schedule identifier: ping',
@@ -83,10 +92,14 @@ final readonly class InvalidJsonConfigurationParserTest
         ],
     ];
 
+    /**
+     * @throws JsonException
+     */
     public function run(): void
     {
         $this->rejectsInvalidJsonContainersAndRules();
         $this->rejectsInvalidSchemaValues();
+        $this->rejectsSurroundingWhitespace();
         $this->reportsMultipleSchemaErrors();
         $this->malformedJsonPreservesOriginalCause();
         $this->invalidTimezonePreservesOriginalCause();
@@ -112,6 +125,55 @@ final readonly class InvalidJsonConfigurationParserTest
         foreach (self::EXPECTED_SCHEMA_ERRORS as $fixture => $expected) {
             $this->assertSchemaError($this->schemaFailure($fixture), $expected);
         }
+    }
+
+    /**
+     * @throws JsonException
+     */
+    private function rejectsSurroundingWhitespace(): void
+    {
+        foreach (self::VALID_TASK as $field => $value) {
+            $this->assertSurroundingWhitespaceRejected($field, $value);
+        }
+
+        $this->assertSurroundingWhitespaceRejected('cron', '@daily');
+    }
+
+    /**
+     * @throws JsonException
+     */
+    private function assertSurroundingWhitespaceRejected(string $field, string $value): void
+    {
+        foreach ([' ', "\t", "\r", "\n", "\u{00A0}", "\u{2003}"] as $whitespace) {
+            foreach ([$whitespace . $value, $value . $whitespace] as $invalid) {
+                $this->assertSurroundingWhitespaceFailure($field, $invalid);
+            }
+        }
+    }
+
+    /**
+     * @throws JsonException
+     */
+    private function assertSurroundingWhitespaceFailure(string $field, string $value): void
+    {
+        $task = array_replace(self::VALID_TASK, [
+            $field => $value,
+        ]);
+        $json = json_encode([
+            'version' => 1,
+            'tasks' => [$task],
+        ], JSON_THROW_ON_ERROR);
+        try {
+            new JsonConfigurationParser()->parse($json);
+        } catch (ConfigurationException $exception) {
+            if ($exception->getMessage() !== 'tasks[0].' . $field . ' must not contain surrounding whitespace.') {
+                throw new LogicException('Whitespace errors must identify their field.', previous: $exception);
+            }
+
+            return;
+        }
+
+        throw new LogicException('Surrounding whitespace must fail configuration loading: ' . $field);
     }
 
     private function reportsMultipleSchemaErrors(): void
