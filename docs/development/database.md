@@ -9,9 +9,9 @@ only the database tools without rebuilding PHP:
 docker compose up -d --wait postgres adminer
 ```
 
-PostgreSQL uses the same `18.6-alpine` runtime as E2B, including the public ECR
-image reference, UTC database and log time zones, a health check, and persistent
-storage. Adminer uses E2B's pinned `6.1.1-standalone` image and `nette` theme.
+PostgreSQL uses the `18.6-alpine` runtime from public ECR, UTC database and log
+time zones, a health check, and persistent storage. Adminer uses a pinned
+`6.1.1-standalone` image and the `nette` theme.
 The UI is exposed directly on a loopback port in this project.
 
 ## Connect
@@ -28,8 +28,6 @@ Open [Adminer](http://localhost:8090) and enter:
 
 The server name is resolved inside the Compose network. From a host-side SQL
 client, use `127.0.0.1:5433` instead. Both published ports bind only to loopback.
-The defaults avoid the ports used by the local E2B database and the separate
-MySQL exercise environment.
 
 For an interactive terminal session without installing PostgreSQL locally:
 
