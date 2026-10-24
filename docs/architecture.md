@@ -47,6 +47,11 @@ and [Scheduler JSON](configuration/format.md) for fields and validation.
 
 ## Current implementation and pending work
 
+The [Laravel Scheduler bootstrap](laravel-scheduler.md) provides a separate
+Illuminate container and minimal scheduler context, registered in Symfony DI.
+Task construction remains in Symfony; the bootstrap is not yet consumed by
+`LaravelAdapter`.
+
 `LaravelAdapter` is an execution prototype. It runs every configured definition
 once on every invocation, regardless of its cron expression or time zone.
 Translation to scheduler jobs, due-time evaluation, and mutex locking remain pending.
@@ -69,7 +74,7 @@ app/
     Exception/                ConfigurationException
     Infrastructure/
       Configuration/          JSON parser, in-memory provider, database placeholder
-      Laravel/                Current execution adapter
+      Laravel/                Execution adapter and Illuminate scheduler context
       Crunz/                  Alternative adapter placeholder
   Task/
     Contract/                 Task and TaskResolver
@@ -81,6 +86,7 @@ config/
   services.php                Imports service configuration
   services/
     logging.php               Shared Monolog logger and PSR-3 alias
+    scheduler.php             Illuminate scheduler context
     tasks.php                 Task discovery and constructor autowiring
 docker/crontab                Periodic invocation of the CLI entry point
 ```
