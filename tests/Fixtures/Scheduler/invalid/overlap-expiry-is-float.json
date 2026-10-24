@@ -1,0 +1,11 @@
+{
+    "version": 1,
+    "tasks": [
+        {
+            "id": "ping",
+            "task": "App\\Task\\Execution\\PingTask",
+            "cron": "* * * * *",
+            "overlapExpiresAfterMinutes": 1.0
+        }
+    ]
+}

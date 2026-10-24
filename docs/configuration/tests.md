@@ -81,6 +81,30 @@ tests. Cron due-time evaluation is covered separately by `DueEventsTest`; see
 [Laravel Scheduler verification](../laravel-scheduler.md#verification).
 All suites are included in `tests/run.php`.
 
+## Concurrency options
+
+`LockingConfigurationParserTest` verifies the unrestricted defaults, independent
+combinations of both flags, and positive integer expirations. It rejects numeric
+and string flags, nulls, arrays, objects, non-positive expirations, and
+floating-point or string expirations. Failures identify the affected field.
+Existing fixture assertions also check the new default values.
+
+The [locking JSON fixture](https://github.com/pupitooo/emorfiq-adapter/blob/main/tests/Fixtures/Scheduler/locking.json)
+contains seven schedules in one document: omitted options, each flag enabled
+independently, both flags with a custom expiration, explicit disabled flags,
+expiration without flags, and the one-minute minimum. Parser assertions check
+each schedule's own values, order, and 60-minute default where expiration is
+omitted, including after a schedule with custom options.
+
+Negative JSON fixtures cover invalid flags and expirations with schema error
+codes and field paths. A combined fixture verifies that all three invalid lock
+options are reported together.
+
+`LaravelLockingTest` covers the JSON-to-event mapping and runner behavior with
+recording mutexes. It also verifies that enabling either protection with the
+current mutex placeholders fails explicitly before task resolution. See
+[Concurrency](concurrency.md) for the configuration contract and implementation status.
+
 ## Invalid examples
 
 The [invalid fixtures](https://github.com/pupitooo/emorfiq-adapter/tree/main/tests/Fixtures/Scheduler/invalid) each isolate one
@@ -104,6 +128,9 @@ aggregation of multiple schema errors into a single configuration failure.
 | `task-is-number.json` | The task class name is a number instead of a string. |
 | `cron-has-seconds.json` | The cron expression has six fields instead of five. |
 | `invalid-timezone.json`, `null-timezone.json`, `empty-timezone.json` | The time zone is unknown, explicitly null, or empty. |
+| `without-overlapping-is-string.json`, `on-one-server-is-null.json` | Lock flags are a string or null instead of booleans. |
+| `overlap-expiry-is-zero.json`, `overlap-expiry-is-float.json` | Lock expiration is zero or a floating-point number. |
+| `multiple-invalid-lock-options.json` | All three lock options are invalid; the parser reports all three fields. |
 | `duplicate-ids.json` | Two schedules use the same identifier. |
 | `unknown-root-field.json`, `unknown-task-field.json` | The root or a task contains an unrecognized field. |
 | `multiple-invalid-fields.json` | One task has both a missing identifier and a task class with the wrong type. |

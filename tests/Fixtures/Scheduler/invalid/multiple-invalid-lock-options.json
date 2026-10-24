@@ -1,0 +1,13 @@
+{
+    "version": 1,
+    "tasks": [
+        {
+            "id": "ping",
+            "task": "App\\Task\\Execution\\PingTask",
+            "cron": "* * * * *",
+            "withoutOverlapping": "true",
+            "overlapExpiresAfterMinutes": 0,
+            "onOneServer": null
+        }
+    ]
+}
