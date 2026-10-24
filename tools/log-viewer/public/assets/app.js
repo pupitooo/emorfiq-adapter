@@ -7,7 +7,7 @@ const detailedClock = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute
 $('timezone').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 function updateStatus() {
-    const healthy = lastPing !== null && Date.now() - lastPing < 5000;
+    const healthy = lastPing !== null && Date.now() - lastPing < 90000;
     $('adapter-state').textContent = healthy ? 'Running normally' : lastPing === null ? 'Waiting for ping' : 'No response';
     $('adapter-dot').className = `status-dot${healthy ? '' : ' waiting'}`;
     $('stream-state').textContent = connected ? 'Live stream connected' : 'Reconnecting';
@@ -28,16 +28,26 @@ stream.addEventListener('log', (event) => {
     const scroll = $('log-scroll');
     const atBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 45;
     const row = document.createElement('tr');
-    const values = [detailedClock.format(timestamp), record.level_name, record.context?.task ?? '—', record.message];
+    const values = [detailedClock.format(timestamp), record.level_name, record.context?.schedule_id ?? record.context?.task ?? '—', record.message];
     for (const [index, value] of values.entries()) {
         const cell = document.createElement('td');
         if (index === 1) {
             const badge = document.createElement('span');
             badge.className = 'level-badge';
+            badge.dataset.level = record.level_name;
             badge.textContent = value;
             cell.append(badge);
         } else {
             cell.textContent = value;
+        }
+        if (index === 3 && record.context && Object.keys(record.context).length > 0) {
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.textContent = 'Context';
+            const context = document.createElement('pre');
+            context.textContent = JSON.stringify(record.context, null, 2);
+            details.append(summary, context);
+            cell.append(details);
         }
         row.append(cell);
     }

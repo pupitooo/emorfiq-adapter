@@ -18,7 +18,8 @@ flowchart TD
     Adapter --> Schedule
     Schedule --> Due["Laravel: select due events and check conditions"]
     Due --> Callback["Invoke selected callback"]
-    Callback --> Resolver
+    Callback --> Executor["TaskExecutor: lifecycle and failure handling"]
+    Executor --> Resolver
     Resolver --> Task["Fresh task instance"]
     Task --> Execution["Execute task: Task::run()"]
 ```
@@ -27,8 +28,8 @@ flowchart TD
    It starts a new PHP CLI process every minute.
 2. `bin/run.php` loads `config/services.php` and compiles a new Symfony container
    for that invocation. It also constructs `InMemorySchedulerConfiguration` with
-   `config/scheduler.json`, retrieves `SchedulerApplication` from the container,
-   and supplies the configuration, task resolver, and scheduler context to the adapter.
+   `config/scheduler.json`, retrieves `SchedulerApplication` and `TaskExecutor`
+   from the container, and supplies these with the configuration to the adapter.
 3. The configuration provider reads and validates JSON once during construction.
    `getConfiguration()` returns the same immutable `Configuration` snapshot,
    containing a list of `ScheduleDefinition` objects.
@@ -38,11 +39,12 @@ flowchart TD
 5. `run()` calls Laravel's `dueEvents()` to select events for the current time,
    then checks each event's `filtersPass()` result before executing it.
    Laravel evaluates the cron expression in the event's time zone.
-6. Inside each selected callback, the adapter asks `TaskResolver` for the task
-   and calls `Task::run()`. Skipped definitions do not resolve tasks. An empty
-   task list runs nothing; each executed definition receives a fresh task instance.
+6. Inside each selected callback, `TaskExecutor` asks `TaskResolver` for the task
+   and calls `Task::run()` with lifecycle logging. Skipped definitions do not
+   resolve tasks. An empty task list runs nothing; each executed definition receives a fresh task instance.
 
 See [Task services](task-services.md) for registration and resolution failures,
+[Task execution](task-execution.md) for logging and failure handling,
 and [Scheduler JSON](configuration/format.md) for fields and validation.
 
 ## Dependency boundaries
@@ -53,7 +55,8 @@ and [Scheduler JSON](configuration/format.md) for fields and validation.
 | Scheduler domain | Immutable configuration and schedule values, independent of Nette Schema and scheduler libraries. |
 | Configuration infrastructure | File access and JSON mapping through Nette Schema. Invalid configuration raises `ConfigurationException`. |
 | Task contracts | `Task::run()` describes work; `TaskResolver::resolve()` retrieves an executable task. |
-| Task infrastructure | `SymfonyTaskResolver` adapts the compiled container to `TaskResolver`. Scheduler adapters depend on the contract. |
+| Task infrastructure | `SymfonyTaskResolver` adapts the compiled container to `TaskResolver`. `TaskExecutor` depends on the contract. |
+| Scheduler application | `TaskExecutor` resolves and executes tasks with PSR-3 lifecycle logging and preserves individual failures. |
 | Task execution | Concrete tasks depend on constructor-injected services such as PSR-3 `LoggerInterface`. |
 | Composition | `bin/run.php` and `config/services/` choose implementations and wire dependencies. |
 
@@ -66,8 +69,10 @@ events. Task construction remains in Symfony.
 
 Each CLI invocation builds a plan and executes its currently due callbacks in
 configuration order. Cron evaluation, time zones, aliases, and event conditions
-are delegated to Laravel Scheduler. Task failures propagate to the CLI caller
-and stop processing the remaining events.
+are delegated to Laravel Scheduler. Task failures are logged while remaining
+due events continue. Like Laravel's runner, the CLI completes normally after
+reported task failures; infrastructure errors still abort immediately. See
+[Task execution](task-execution.md#process-exit-status) for exit status semantics.
 
 Functional mutex locking remains pending. Mutex placeholders throw
 `LogicException('Not Implemented')` if a lock operation is requested.
@@ -85,9 +90,10 @@ Paths are relative to the application root.
 ```text
 app/
   Scheduler/
+    Application/              TaskExecutor and lifecycle logging
     Contract/                 Adapter and SchedulerConfiguration
     Domain/                   Configuration and ScheduleDefinition
-    Exception/                ConfigurationException
+    Exception/                Configuration and task execution failures
     Infrastructure/
       Configuration/          JSON parser, in-memory provider, database placeholder
       Laravel/
@@ -105,7 +111,7 @@ config/
   services.php                Imports service configuration
   services/
     logging.php               Shared Monolog logger and PSR-3 alias
-    scheduler.php             Illuminate scheduler context
+    scheduler.php             Illuminate scheduler context and TaskExecutor
     tasks.php                 Task discovery and constructor autowiring
 docker/crontab                Periodic invocation of the CLI entry point
 ```

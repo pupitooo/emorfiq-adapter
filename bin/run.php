@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Scheduler\Application\TaskExecutor;
 use App\Scheduler\Infrastructure\Configuration\InMemorySchedulerConfiguration;
 use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
 use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
-use App\Task\Infrastructure\Symfony\SymfonyTaskResolver;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
@@ -25,6 +25,10 @@ if (! $application instanceof SchedulerApplication) {
     throw new LogicException('Scheduler application service must implement ' . SchedulerApplication::class);
 }
 
-$adapter = new LaravelAdapter(new SymfonyTaskResolver($container), $configuration, $application);
+$executor = $container->get(TaskExecutor::class);
+if (! $executor instanceof TaskExecutor) {
+    throw new LogicException('Task executor service must implement ' . TaskExecutor::class);
+}
 
+$adapter = new LaravelAdapter($executor, $configuration, $application);
 $adapter->run();

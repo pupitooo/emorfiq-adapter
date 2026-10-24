@@ -32,7 +32,8 @@ development server and is exposed only on `127.0.0.1`.
 | `docs` | Runs the independent documentation preview. |
 
 The scheduler writes task records to `storage/logs/adapter.log` in the shared
-Docker `runtime` volume. The web viewer reads that same file. `make logs`
+Docker `runtime` volume. The [log viewer](log-viewer.md) reads that same file
+and displays lifecycle details, durations, and exceptions. `make logs`
 follows scheduler process output and adapter errors in the terminal.
 See [Architecture](../architecture.md) for the invocation flow and current scheduling limits.
 
