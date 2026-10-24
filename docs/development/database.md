@@ -52,5 +52,6 @@ The example credentials are intended for local development.
 Database files live in the Compose-managed `postgres_data` volume, mounted at
 `/var/lib/postgresql` for PostgreSQL 18. `make down` preserves this volume.
 
-The database starts without application tables. Schema migrations and persistent
-task locking are subsequent work; the scheduler does not connect to PostgreSQL yet.
+The database starts without application tables. Apply the versioned schema
+explicitly with the [migration commands](migrations.md). The scheduler does not
+connect to PostgreSQL yet; persistent mutex behavior is subsequent work.
