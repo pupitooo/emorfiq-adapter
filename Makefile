@@ -1,14 +1,18 @@
-.PHONY: up down logs test check docs docs-stop docs-check docs-export
+.PHONY: up down logs psql test check docs docs-stop docs-check docs-export
 
 up:
 	@docker compose up -d --build --wait
-	@printf '%s\n' 'http://localhost:$(or $(APP_PORT),8088)/'
+	@printf 'Log viewer: http://%s/\n' "$$(docker compose port web 8080)"
+	@printf 'Adminer: http://%s/\n' "$$(docker compose port adminer 8080)"
 
 down:
 	@docker compose down
 
 logs:
 	@docker compose logs --tail=50 -f scheduler
+
+psql:
+	@docker compose exec postgres sh -c 'exec psql -X --username="$${POSTGRES_USER}" --dbname="$${POSTGRES_DB}"'
 
 test:
 	@docker compose build check

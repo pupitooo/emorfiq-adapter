@@ -10,6 +10,47 @@ x-runtime: &runtime
   restart: unless-stopped
 
 services:
+  postgres:
+    # Match the PostgreSQL runtime used by E2B.
+    image: public.ecr.aws/docker/library/postgres:18.6-alpine
+    restart: unless-stopped
+    shm_size: 128mb
+    environment:
+      POSTGRES_DB: emorfiq
+      POSTGRES_USER: emorfiq
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emorfiq_local_dev}
+      TZ: UTC
+    command: ["postgres", "-c", "timezone=UTC", "-c", "log_timezone=UTC"]
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  adminer:
+    # Match E2B's pinned Adminer runtime and visual theme.
+    image: adminer:6.1.1-standalone@sha256:74f29c416e148b98305e84446a18db7cd2c1038264dec464359d36774ef080ce
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: nette
+    ports:
+      - "127.0.0.1:${ADMINER_PORT:-8090}:8080"
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(file_get_contents('http://127.0.0.1:8080/') === false ? 1 : 0);"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
   web:
     <<: *runtime
     environment:
@@ -63,3 +104,4 @@ services:
 
 volumes:
   runtime:
+  postgres_data:
