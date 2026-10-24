@@ -70,3 +70,43 @@ flowchart LR
 - Planned: the adapter translates configuration for the selected scheduler and
   coordinates mutex locking; the scheduler evaluates due jobs and executes them.
   Scheduler and mutex integration are not implemented yet.
+
+## Documentation
+
+Start the documentation as a separate local service:
+
+```sh
+make docs
+```
+
+Open **[http://localhost:8089](http://localhost:8089)**. Only the documentation
+container starts; it does not require the web server or scheduler. To select
+another port, run `DOCS_PORT=8091 make docs`. Changes to `README.md` and the
+documentation Markdown rebuild the preview and refresh the browser automatically.
+Stop it with `make docs-stop`.
+
+The site uses the same Material for MkDocs image, theme, navigation features,
+and system fonts as the E2B documentation. Its home page is generated directly
+from this README, followed by the
+[JSON scheduler configuration](docs/site/content/scheduler-configuration.md).
+Other files under `docs/` are outside the published site.
+
+| Command | Purpose |
+| --- | --- |
+| `make docs` | Start the independent documentation service and print its URL. |
+| `make docs-stop` | Stop the documentation service. |
+| `make docs-check` | Validate and build the documentation in a temporary container. |
+| `make docs-export` | Build the static site in `build/docs/` for publication. |
+
+### GitHub Pages
+
+In the repository's **Settings → Pages → Build and deployment**, set **Source**
+to **GitHub Actions**. The `Documentation Pages` workflow builds and publishes
+the site when changes reach `main`, or when manually run on `main`. CI also
+validates the documentation on pull requests.
+
+The default publication URL is
+[https://pupitooo.github.io/emorfiq-adapter/](https://pupitooo.github.io/emorfiq-adapter/).
+The workflow reads the actual Pages URL, including its repository path or custom
+domain. To export for another address locally, use
+`DOCS_SITE_URL=https://example.com/docs/ make docs-export`.
