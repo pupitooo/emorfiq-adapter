@@ -1,0 +1,10 @@
+{
+    "version": 1,
+    "tasks": [
+        {
+            "id": "ping",
+            "task": " \t\n ",
+            "cron": "* * * * *"
+        }
+    ]
+}

@@ -28,6 +28,7 @@ final readonly class JsonConfigurationParserTest
         $this->selectedMonthDaysCanUseNewYorkTime($configuration->tasks[3] ?? null);
         $this->emptyTaskListIsAllowed();
         $this->defaultTimezoneIsIndependentOfPhpSettings();
+        $this->preservesSurroundingWhitespace();
     }
 
     private function assertVersionAndTaskCount(Configuration $configuration): void
@@ -109,6 +110,23 @@ final readonly class JsonConfigurationParserTest
             $this->everyMinuteDefaultsToUtc($configuration->tasks[0] ?? null);
         } finally {
             date_default_timezone_set($originalTimezone);
+        }
+    }
+
+    /**
+     * @throws ConfigurationException
+     */
+    private function preservesSurroundingWhitespace(): void
+    {
+        $configuration = new JsonConfigurationParser()->parse(SchedulerFixtures::read('surrounding-whitespace.json'));
+        $definition = $configuration->tasks[0] ?? null;
+        if (
+            $definition === null
+            || $definition->id !== ' ping '
+            || $definition->task !== ' ' . PingTask::class . ' '
+            || $definition->cron !== "\t* * * * *\n"
+        ) {
+            throw new LogicException('Validation must preserve surrounding whitespace in non-empty values.');
         }
     }
 

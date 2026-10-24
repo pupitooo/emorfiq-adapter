@@ -22,6 +22,11 @@ final readonly class InvalidJsonConfigurationParserTest
         'task-is-string.json' => 'tasks[0] must be a JSON object.',
         'task-is-array.json' => 'tasks[0] must be a JSON object.',
         'task-is-null.json' => 'tasks[0] must be a JSON object.',
+        'empty-id.json' => 'tasks[0].id must contain a non-whitespace character.',
+        'unicode-whitespace-id.json' => 'tasks[0].id must contain a non-whitespace character.',
+        'empty-task.json' => 'tasks[0].task must contain a non-whitespace character.',
+        'empty-cron.json' => 'tasks[0].cron must contain a non-whitespace character.',
+        'empty-timezone.json' => 'tasks[0].timezone must contain a non-whitespace character.',
         'cron-has-seconds.json' => 'tasks[0].cron must contain exactly five fields.',
         'invalid-timezone.json' => 'tasks[0].timezone is invalid: Europe/Unknown',
         'duplicate-ids.json' => 'Duplicate schedule identifier: ping',
@@ -60,20 +65,12 @@ final readonly class InvalidJsonConfigurationParserTest
             'code' => Message::MissingItem,
             'path' => ['tasks', 0, 'cron'],
         ],
-        'empty-id.json' => [
-            'code' => Message::PatternMismatch,
-            'path' => ['tasks', 0, 'id'],
-        ],
         'task-is-number.json' => [
             'code' => Message::TypeMismatch,
             'path' => ['tasks', 0, 'task'],
         ],
         'null-timezone.json' => [
             'code' => Message::TypeMismatch,
-            'path' => ['tasks', 0, 'timezone'],
-        ],
-        'empty-timezone.json' => [
-            'code' => Message::PatternMismatch,
             'path' => ['tasks', 0, 'timezone'],
         ],
         'unknown-root-field.json' => [

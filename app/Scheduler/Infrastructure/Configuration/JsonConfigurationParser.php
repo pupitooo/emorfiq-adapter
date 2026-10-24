@@ -11,19 +11,16 @@ use DateInvalidTimeZoneException;
 use DateTimeZone;
 use JsonException;
 use LogicException;
-use Nette\Schema\Elements\StringType;
 use Nette\Schema\Expect;
 use Nette\Schema\Processor;
 use Nette\Schema\Schema;
 use Nette\Schema\ValidationException;
+use Nette\Utils\Strings;
 use stdClass;
 
 final readonly class JsonConfigurationParser
 {
     private const string CRON_FORMAT_PATTERN = '/^\S+(?:\s+\S+){4}$/D';
-
-    // Require a character outside PHP trim()'s whitespace set, including in multiline values.
-    private const string NON_EMPTY_STRING_PATTERN = '(?s).*[^ \t\n\r\x00\x0B].*';
 
     private const int REGEX_MATCH_FOUND = 1;
 
@@ -115,16 +112,11 @@ final readonly class JsonConfigurationParser
     private function taskSchema(): Schema
     {
         return Expect::structure([
-            'id' => $this->nonEmptyString()->required(),
-            'task' => $this->nonEmptyString()->required(),
-            'cron' => $this->nonEmptyString()->required(),
-            'timezone' => $this->nonEmptyString()->default(ScheduleDefinition::DEFAULT_TIMEZONE),
+            'id' => Expect::string()->required(),
+            'task' => Expect::string()->required(),
+            'cron' => Expect::string()->required(),
+            'timezone' => Expect::string()->default(ScheduleDefinition::DEFAULT_TIMEZONE),
         ])->castTo(ScheduleDefinition::class);
-    }
-
-    private function nonEmptyString(): StringType
-    {
-        return Expect::string()->pattern(self::NON_EMPTY_STRING_PATTERN);
     }
 
     /**
@@ -135,6 +127,7 @@ final readonly class JsonConfigurationParser
         $identifiers = [];
         foreach ($configuration->tasks as $index => $definition) {
             $path = 'tasks[' . $index . ']';
+            $this->validateNonEmptyFields($definition, $path);
             $this->validateCronFields($definition->cron, $path);
             $this->validateTimezone($definition->timezone, $path);
             if (isset($identifiers[$definition->id])) {
@@ -142,6 +135,24 @@ final readonly class JsonConfigurationParser
             }
 
             $identifiers[$definition->id] = true;
+        }
+    }
+
+    /**
+     * @throws ConfigurationException
+     */
+    private function validateNonEmptyFields(ScheduleDefinition $definition, string $path): void
+    {
+        $fields = [
+            'id' => $definition->id,
+            'task' => $definition->task,
+            'cron' => $definition->cron,
+            'timezone' => $definition->timezone,
+        ];
+        foreach ($fields as $field => $value) {
+            if (Strings::trim($value) === '') {
+                throw new ConfigurationException($path . '.' . $field . ' must contain a non-whitespace character.');
+            }
         }
     }
 

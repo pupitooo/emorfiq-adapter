@@ -44,14 +44,16 @@ and to the default time zone through `ScheduleDefinition::DEFAULT_TIMEZONE`.
 JSON definitions and fixture expectations keep the corresponding literal values.
 
 `JsonConfigurationParser` decodes JSON with PHP and delegates required fields,
-types, non-empty string assertions, defaults, and object construction to
+types, defaults, and object construction to
 [`nette/schema`](https://doc.nette.org/en/schema). `castTo()` passes the validated
 values to the constructors of `Configuration` and `ScheduleDefinition`.
 The domain objects remain independent of Nette.
 
 Small JSON container checks preserve the distinction between objects, arrays,
-and null before Nette normalization. Unique schedule identifiers, five-field
-cron structure, and time zone validity are checked on the mapped configuration.
+and null before Nette normalization. Non-empty fields, unique schedule
+identifiers, five-field cron structure, and time zone validity are checked on
+the mapped configuration. Empty-field validation uses `Nette\Utils\Strings::trim()`,
+including its Unicode whitespace support, without changing the stored values.
 
 Unreadable files, invalid JSON, unsupported versions, invalid field types,
 empty required strings, duplicate identifiers, invalid time zones, and cron
@@ -140,7 +142,8 @@ aggregation of multiple schema errors into a single configuration failure.
 | `missing-tasks.json`, `tasks-is-object.json`, `tasks-is-null.json` | The task list is missing or is an object or null instead of an array. |
 | `task-is-string.json`, `task-is-array.json`, `task-is-null.json` | A task definition is not a JSON object. |
 | `missing-id.json`, `missing-task.json`, `missing-cron.json` | A required task field is missing. |
-| `empty-id.json` | The identifier contains only whitespace. |
+| `empty-id.json`, `unicode-whitespace-id.json` | The identifier contains only ASCII or Unicode whitespace. |
+| `empty-task.json`, `empty-cron.json` | The task class name or cron expression contains only whitespace. |
 | `task-is-number.json` | The task class name is a number instead of a string. |
 | `cron-has-seconds.json` | The cron expression has six fields instead of five. |
 | `invalid-timezone.json`, `null-timezone.json`, `empty-timezone.json` | The time zone is unknown, explicitly null, or empty. |
