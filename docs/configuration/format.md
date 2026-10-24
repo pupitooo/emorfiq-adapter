@@ -76,10 +76,11 @@ minute  hour  day-of-month  month  day-of-week
 | `*/5 * * * *` | Every five minutes. |
 | `0 9 * * *` | Daily at 09:00 in the task's time zone. |
 
-The configuration parser checks that the expression has exactly five
-whitespace-separated fields. Full validation of cron syntax and ranges belongs
-to the scheduler integration. Do not use six-field expressions or shortcuts
-such as `@daily`.
+The configuration parser validates cron syntax, field counts, and field ranges
+using `dragonmantank/cron-expression`. Expressions must contain exactly five
+whitespace-separated fields. Shortcuts such as `@daily` are rejected explicitly,
+even though the library accepts them. Surrounding whitespace is allowed and
+preserved in the loaded definition. Do not use six-field expressions.
 
 ### Time zone
 
@@ -101,7 +102,8 @@ Configuration loading rejects:
 - A task entry other than an object.
 - Missing, non-string, empty, or whitespace-only `id`, `task`, or `cron` values.
 - Duplicate task identifiers.
-- Cron expressions with other than five fields.
+- Cron expressions with invalid syntax, out-of-range values, other than five
+  fields, or shortcuts such as `@daily`.
 - Explicit `timezone` values that are not non-empty strings or valid PHP time zones.
 - Unknown fields at the document root or in a task definition.
 

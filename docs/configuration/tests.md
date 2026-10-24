@@ -55,6 +55,13 @@ checks the returned typed values. It also checks that the UTC default is
 independent of PHP's current time zone. Fixture reading is test setup;
 the provider is not involved in these scenarios.
 
+`CronConfigurationParserTest` adds valid numeric boundaries, named months and
+weekdays, and mixed whitespace. It rejects empty and Unicode-whitespace-only
+expressions, too few or too many fields, out-of-range values, invalid tokens,
+steps, ranges, and lists. It also rejects the library's built-in aliases,
+including aliases with surrounding whitespace or uppercase letters.
+The existing empty-cron and six-field fixtures remain covered.
+
 The [provider integration test](https://github.com/pupitooo/emorfiq-adapter/blob/main/tests/Integration/Scheduler/InMemorySchedulerConfigurationTest.php)
 covers loading an actual file, retaining the original configuration after the
 source file changes, rejecting missing files and directories, and propagating
