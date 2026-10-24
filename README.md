@@ -7,7 +7,7 @@ coupling application code to their types.
 The current foundation provides:
 
 - A framework-independent `Adapter` execution contract with `run(): void`.
-- A `LaravelAdapter` that runs the example `PingTask` on each invocation.
+- A `LaravelAdapter` prototype that runs `PingTask` once for each configured definition on each invocation.
 - A `CrunzAdapter` placeholder that reports `Not Implemented`.
 - A Docker environment using **PHP 8.5**, with separate execution and web services.
 - Static analysis and coding-standard checks for local development and CI.
@@ -15,7 +15,13 @@ The current foundation provides:
 Application code is grouped into `Scheduler` and `Task` namespaces. The optional
 log viewer lives separately in `tools/log-viewer/` under `DevTools\LogViewer`,
 following the [application structure](docs/STRUCTURE_PROPOSAL.md).
-The unit test checks `PingTask` logging in memory through Monolog's `TestHandler`.
+Unit tests cover `PingTask` logging through Monolog's `TestHandler` and JSON
+parser mapping, defaults, and validation. Focused integration tests cover the
+configuration provider's file loading, cached snapshot, and error propagation.
+
+The JSON task definitions live in [`config/scheduler.json`](config/scheduler.json).
+Their fields, required values, and defaults are described in the
+[scheduler configuration structure](docs/SCHEDULER_CONFIGURATION.md).
 
 ## Run locally
 
@@ -43,7 +49,7 @@ PHP's development server and is exposed only on `127.0.0.1`.
 | `make down` | Stop the application while keeping its logs. |
 | `make logs` | Follow cron output and adapter errors in the terminal. |
 | `make test` | Run all tests in a separate Docker container. |
-| `make check` | Run PHPStan, ECS coding-standard checks, and the PingTask test in a separate Docker container. |
+| `make check` | Run PHPStan, ECS coding-standard checks, and the test suite in a separate Docker container. |
 
 ## Runtime connections
 
@@ -65,7 +71,12 @@ flowchart LR
 
 - `scheduler` starts a new CLI process every second during development.
   Its healthcheck monitors the cron process.
-- `SchedulerConfiguration` is an empty configuration contract, not yet connected to the adapters.
+- `SchedulerConfiguration::getConfiguration()` returns an immutable `Configuration` with typed task definitions.
+  `InMemorySchedulerConfiguration` loads and validates `config/scheduler.json` once during construction.
+  `DatabaseSchedulerConfiguration` exposes the same method and currently throws `LogicException('Not Implemented')`.
+  `bin/run.php` supplies the in-memory provider to `LaravelAdapter`.
+  The adapter runs each configured `PingTask` definition once per invocation; an empty task list runs nothing.
+  Other task classes raise `LogicException`. Cron and time zone evaluation remain pending.
 - Planned: the adapter translates configuration for the selected scheduler and
   coordinates mutex locking; the scheduler evaluates due jobs and executes them.
   Scheduler and mutex integration are not implemented yet.
