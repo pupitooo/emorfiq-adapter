@@ -112,7 +112,7 @@ final readonly class DueEventsTest
             Date::setTestNow(new DateTimeImmutable($instant));
             $executor = TaskServices::executor(TaskServices::container($path));
             $configuration = SchedulerFixtures::configuration($definitions);
-            new LaravelAdapter($executor, $configuration, new SchedulerApplication())->run();
+            new LaravelAdapter(new SchedulerApplication(), $executor, $configuration)->run();
 
             return LogRecords::taskMessages($path);
         } finally {

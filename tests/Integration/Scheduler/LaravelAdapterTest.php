@@ -52,7 +52,7 @@ final readonly class LaravelAdapterTest
         ]);
         $resolver = new SymfonyTaskResolver(new ContainerBuilder());
         $executor = new TaskExecutor($resolver, new NullLogger());
-        $adapter = new LaravelAdapter($executor, $configuration, new SchedulerApplication());
+        $adapter = new LaravelAdapter(new SchedulerApplication(), $executor, $configuration);
         $this->assertMappedEvents($adapter->createSchedule());
         $this->assertMappedEvents($adapter->createSchedule());
     }
@@ -92,7 +92,7 @@ final readonly class LaravelAdapterTest
             new ScheduleDefinition('ping-second', PingTask::class, '* * * * *'),
         ]);
         $executor = TaskServices::executor(TaskServices::container($path));
-        new LaravelAdapter($executor, $configuration, new SchedulerApplication())->run();
+        new LaravelAdapter(new SchedulerApplication(), $executor, $configuration)->run();
 
         $this->assertLog($path);
     }
@@ -111,7 +111,7 @@ final readonly class LaravelAdapterTest
     {
         $resolver = new SymfonyTaskResolver(new ContainerBuilder());
         $executor = new TaskExecutor($resolver, new NullLogger());
-        new LaravelAdapter($executor, SchedulerFixtures::configuration([]), new SchedulerApplication())->run();
+        new LaravelAdapter(new SchedulerApplication(), $executor, SchedulerFixtures::configuration([]))->run();
     }
 
     /**
@@ -124,7 +124,7 @@ final readonly class LaravelAdapterTest
             new ScheduleDefinition('missing', self::class, '* * * * *'),
         ]);
         $executor = TaskServices::executor(TaskServices::container($path));
-        new LaravelAdapter($executor, $configuration, new SchedulerApplication())->run();
+        new LaravelAdapter(new SchedulerApplication(), $executor, $configuration)->run();
         $records = LogRecords::read($path);
         $exception = $records[1]['context']['exception'] ?? null;
         if (

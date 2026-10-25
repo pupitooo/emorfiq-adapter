@@ -14,21 +14,33 @@ $projectDir = dirname(__DIR__);
 
 require $projectDir . '/vendor/autoload.php';
 
+// This standalone setup uses Symfony DependencyInjection to load service definitions
+// from config/services.php and autowire their dependencies.
+// A framework application can use its own service registration and autowiring instead,
+// with a TaskResolver implementation that resolves tasks from its container.
 $container = new ContainerBuilder();
 $loader = new PhpFileLoader($container, new FileLocator($projectDir . '/config'));
 $loader->load('services.php');
 $container->compile();
 
-$configuration = new InMemorySchedulerConfiguration($projectDir . '/config/scheduler.json');
-$application = $container->get(SchedulerApplication::class);
-if (! $application instanceof SchedulerApplication) {
+// Resolve SchedulerApplication, which supplies Laravel's scheduler context.
+// Tasks are instantiated later, when selected callbacks invoke TaskExecutor.
+$scheduler = $container->get(SchedulerApplication::class);
+if (! $scheduler instanceof SchedulerApplication) {
     throw new LogicException('Scheduler application service must implement ' . SchedulerApplication::class);
 }
 
+// Compilation wires TaskExecutor to SymfonyTaskResolver through TaskResolver.
 $executor = $container->get(TaskExecutor::class);
 if (! $executor instanceof TaskExecutor) {
     throw new LogicException('Task executor service must implement ' . TaskExecutor::class);
 }
 
-$adapter = new LaravelAdapter($executor, $configuration, $application);
+$configuration = new InMemorySchedulerConfiguration($projectDir . '/config/scheduler.json');
+
+$adapter = new LaravelAdapter(
+    scheduler: $scheduler,
+    executor: $executor,
+    configuration: $configuration,
+);
 $adapter->run();

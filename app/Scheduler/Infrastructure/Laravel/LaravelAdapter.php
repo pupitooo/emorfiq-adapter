@@ -9,7 +9,7 @@ use App\Scheduler\Contract\Adapter;
 use App\Scheduler\Contract\SchedulerConfiguration;
 use App\Scheduler\Domain\ScheduleDefinition;
 use App\Scheduler\Exception\TaskExecutionException;
-use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
+use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication as LaravelScheduler;
 use DateTimeInterface;
 use Exception;
 use Illuminate\Console\Scheduling\Event;
@@ -21,9 +21,9 @@ use Override;
 final readonly class LaravelAdapter implements Adapter
 {
     public function __construct(
+        private LaravelScheduler $scheduler,
         private TaskExecutor $executor,
         private SchedulerConfiguration $configuration,
-        private SchedulerApplication $application,
     ) {}
 
     /**
@@ -36,7 +36,7 @@ final readonly class LaravelAdapter implements Adapter
         $schedule = $this->createSchedule();
         /** @var Collection<int, Event> $events */
         // @phpstan-ignore argument.type (The runtime provides the application methods used by Scheduler.)
-        $events = $schedule->dueEvents($this->application);
+        $events = $schedule->dueEvents($this->scheduler);
         $this->runEvents($schedule, $events, $startedAt);
     }
 
@@ -62,7 +62,7 @@ final readonly class LaravelAdapter implements Adapter
     private function runEvent(Schedule $schedule, Event $event, DateTimeInterface $startedAt): void
     {
         // @phpstan-ignore argument.type (Event filters require only the Illuminate container.)
-        if (! $event->filtersPass($this->application)) {
+        if (! $event->filtersPass($this->scheduler)) {
             return;
         }
 
@@ -70,7 +70,7 @@ final readonly class LaravelAdapter implements Adapter
             return;
         }
 
-        $event->run($this->application);
+        $event->run($this->scheduler);
     }
 
     /**
@@ -78,7 +78,7 @@ final readonly class LaravelAdapter implements Adapter
      */
     public function createSchedule(): Schedule
     {
-        $schedule = $this->application->createSchedule();
+        $schedule = $this->scheduler->createSchedule();
         foreach ($this->configuration->getConfiguration()->tasks as $definition) {
             $event = $schedule->call(function () use ($definition): void {
                 $this->executor->execute($definition);
