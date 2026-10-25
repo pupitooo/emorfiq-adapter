@@ -31,7 +31,7 @@ final readonly class TaskExecutor
         try {
             $this->resolver->resolve($definition->task)->run();
         } catch (Throwable $exception) {
-            $failure = new TaskExecutionException($definition, $exception);
+            $failure = new TaskExecutionException(definition: $definition, previous: $exception);
             $this->logFailure($failure, $started);
 
             throw $failure;

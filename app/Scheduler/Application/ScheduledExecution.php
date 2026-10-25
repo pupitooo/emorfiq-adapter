@@ -56,7 +56,11 @@ final class ScheduledExecution
     {
         if (! $this->claimAttempted) {
             $this->claimAttempted = true;
-            $this->claim = $this->mutex->claim($this->definition, $this->scheduledFor, $this->processId);
+            $this->claim = $this->mutex->claim(
+                definition: $this->definition,
+                scheduledFor: $this->scheduledFor,
+                claimedBy: $this->processId,
+            );
         }
 
         return $this->claim;
@@ -86,7 +90,10 @@ final class ScheduledExecution
     public function isOccurrenceReserved(): bool
     {
         return $this->claim !== null
-            || $this->mutex->isOccurrenceReserved($this->definition->id, $this->scheduledFor);
+            || $this->mutex->isOccurrenceReserved(
+                scheduleId: $this->definition->id,
+                scheduledFor: $this->scheduledFor,
+            );
     }
 
     /**
@@ -167,7 +174,7 @@ final class ScheduledExecution
             throw $failure;
         }
 
-        $this->finish($claim, RunOutcome::Succeeded);
+        $this->finish(claim: $claim, outcome: RunOutcome::Succeeded);
     }
 
     /**

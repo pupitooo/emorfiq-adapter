@@ -25,7 +25,7 @@ final readonly class CoordinatedSchedulingMutex implements SchedulingMutex
     #[Override]
     public function create(Event $event, DateTimeInterface $time): bool
     {
-        return $this->executions->forOccurrence($event, $time)->claim() !== null;
+        return $this->executions->forOccurrence(event: $event, instant: $time)->claim() !== null;
     }
 
     /**
@@ -35,6 +35,6 @@ final readonly class CoordinatedSchedulingMutex implements SchedulingMutex
     #[Override]
     public function exists(Event $event, DateTimeInterface $time): bool
     {
-        return $this->executions->forOccurrence($event, $time)->isOccurrenceReserved();
+        return $this->executions->forOccurrence(event: $event, instant: $time)->isOccurrenceReserved();
     }
 }

@@ -152,8 +152,8 @@ final readonly class JsonConfigurationParser
         foreach ($configuration->tasks as $index => $definition) {
             $path = 'tasks[' . $index . ']';
             $this->validateStringFields($definition, $path);
-            $this->validateCronExpression($definition->cron, $path);
-            $this->validateTimezone($definition->timezone, $path);
+            $this->validateCronExpression(cron: $definition->cron, path: $path);
+            $this->validateTimezone(timezone: $definition->timezone, path: $path);
             if (isset($identifiers[$definition->id])) {
                 throw new ConfigurationException('Duplicate schedule identifier: ' . $definition->id);
             }
