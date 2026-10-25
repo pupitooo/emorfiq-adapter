@@ -4,26 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Integration\Scheduler;
 
-use App\Scheduler\Application\TaskExecutor;
+use App\Scheduler\Domain\RunOutcome;
 use App\Scheduler\Domain\ScheduleDefinition;
-use App\Scheduler\Infrastructure\Configuration\JsonConfigurationParser;
-use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
-use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
+use App\Scheduler\Infrastructure\Laravel\Mutex\CoordinatedEventMutex;
 use App\Task\Execution\PingTask;
-use App\Task\Infrastructure\Symfony\SymfonyTaskResolver;
 use Exception;
-use Illuminate\Console\Scheduling\EventMutex;
-use Illuminate\Console\Scheduling\SchedulingMutex;
-use Illuminate\Support\Facades\Date;
 use LogicException;
-use Psr\Log\NullLogger;
-use Symfony\Component\DependencyInjection\ContainerBuilder;
-use Tests\Fixtures\Scheduler\RecordingEventMutex;
-use Tests\Fixtures\Scheduler\RecordingSchedulingMutex;
-use Tests\Fixtures\Task\FailingTask;
-use Tests\Support\LogRecords;
-use Tests\Support\SchedulerFixtures;
-use Tests\Support\TaskServices;
+use Tests\Fixtures\Scheduler\RecordingExecutionMutex;
+use Tests\Support\MutexAssertions as A;
+use Tests\Support\MutexScenario;
 
 final readonly class LaravelLockingTest
 {
@@ -32,167 +21,159 @@ final readonly class LaravelLockingTest
      */
     public function run(): void
     {
-        $this->mapsJsonLockOptions();
-        $this->rejectsUnimplementedLocks();
-        $path = tempnam(sys_get_temp_dir(), 'emorfiq-locking-');
-        if ($path === false) {
-            throw new LogicException('Unable to create locking test log.');
-        }
-
-        try {
-            $this->coordinatesSingleServerExecution($path);
-            $this->guardsOverlappingExecution($path);
-        } finally {
-            unlink($path);
-        }
+        $this->mapsOptionsWithoutClaiming();
+        $this->sharesClaimBetweenBothNativeMutexesAndCallback();
+        $this->supportsIndependentProtectionFlags();
+        $this->skipsLiveOverlapBeforeClaiming();
+        $this->skipsAtomicConflictBeforeResolving();
+        $this->ignoresUnprotectedAndNotDueTasks();
     }
 
     /**
      * @throws Exception
      */
-    private function mapsJsonLockOptions(): void
+    private function mapsOptionsWithoutClaiming(): void
     {
-        $json = '{"version":1,"tasks":[
-            {"id":"default","task":"missing","cron":"* * * * *"},
-            {"id":"overlap","task":"missing","cron":"* * * * *","withoutOverlapping":true},
-            {"id":"server","task":"missing","cron":"* * * * *","onOneServer":true},
-            {"id":"both","task":"missing","cron":"* * * * *","withoutOverlapping":true,
-                "overlapExpiresAfterMinutes":30,"onOneServer":true}
-        ]}';
-        $definitions = new JsonConfigurationParser()->parse($json)->tasks;
-        $executor = new TaskExecutor(new SymfonyTaskResolver(new ContainerBuilder()), new NullLogger());
-        $adapter = new LaravelAdapter(
-            new SchedulerApplication(),
-            $executor,
-            SchedulerFixtures::configuration($definitions),
-        );
-        foreach (array_values($adapter->createSchedule()->events()) as $index => $event) {
-            $this->assertMappedOptions($index, $event->withoutOverlapping, $event->expiresAt, $event->onOneServer);
+        $definitions = $this->lockingDefinitions();
+        $scenario = new MutexScenario($definitions);
+        foreach (array_values($scenario->adapter->createSchedule()->events()) as $index => $event) {
+            $definition = $definitions[$index] ?? throw new LogicException('Unexpected scheduler event.');
+            A::same($definition->withoutOverlapping, $event->withoutOverlapping);
+            A::same($definition->onOneServer, $event->onOneServer);
+            $expiration = $definition->withoutOverlapping ? $definition->overlapExpiresAfterMinutes : 1440;
+            A::same($expiration, $event->expiresAt);
+            A::same(true, $event->mutex instanceof CoordinatedEventMutex);
         }
-    }
-
-    private function assertMappedOptions(int $index, bool $overlap, int $expiry, bool $oneServer): void
-    {
-        $expected = [
-            [false, 1440, false],
-            [true, 60, false],
-            [false, 1440, true],
-            [true, 30, true],
-        ];
-        if ([$overlap, $expiry, $oneServer] !== ($expected[$index] ?? null)) {
-            throw new LogicException('Each event must map JSON lock flags and expiration independently.');
-        }
+        A::same([], $scenario->mutex->claims);
+        A::same([], $scenario->resolver->resolved);
     }
 
     /**
-     * @throws Exception
+     * @return list<ScheduleDefinition>
      */
-    private function rejectsUnimplementedLocks(): void
+    private function lockingDefinitions(): array
     {
-        foreach ([
+        return [
+            new ScheduleDefinition('default', 'missing', '* * * * *'),
             new ScheduleDefinition('overlap', 'missing', '* * * * *', withoutOverlapping: true),
             new ScheduleDefinition('server', 'missing', '* * * * *', onOneServer: true),
-        ] as $definition) {
-            $executor = new TaskExecutor(new SymfonyTaskResolver(new ContainerBuilder()), new NullLogger());
-            $adapter = new LaravelAdapter(
-                new SchedulerApplication(),
-                $executor,
-                SchedulerFixtures::configuration([$definition]),
-            );
-            $this->assertLockFailure($adapter);
-        }
-    }
-
-    /**
-     * @throws Exception
-     */
-    private function assertLockFailure(LaravelAdapter $adapter): void
-    {
-        try {
-            $adapter->run();
-        } catch (LogicException $exception) {
-            if ($exception->getMessage() !== 'Not Implemented') {
-                throw new LogicException('Lock failures must propagate before resolving tasks.', previous: $exception);
-            }
-
-            return;
-        }
-
-        throw new LogicException('Enabled locking must not silently run without an implementation.');
-    }
-
-    /**
-     * @throws Exception
-     */
-    private function coordinatesSingleServerExecution(string $path): void
-    {
-        $definitions = [
-            new ScheduleDefinition('blocked', 'missing', '* * * * *', onOneServer: true),
-            new ScheduleDefinition('allowed', PingTask::class, '* * * * *', onOneServer: true),
-            new ScheduleDefinition('ordinary', PingTask::class, '* * * * *'),
-            new ScheduleDefinition('later', 'missing', '1 8 * * *', onOneServer: true),
+            new ScheduleDefinition(
+                'both',
+                'missing',
+                '* * * * *',
+                withoutOverlapping: true,
+                overlapExpiresAfterMinutes: 30,
+                onOneServer: true
+            ),
         ];
-        $application = new SchedulerApplication();
-        $mutex = new RecordingSchedulingMutex();
-        $application->instance(SchedulingMutex::class, $mutex);
-        $this->runAtFixedTime($path, $definitions, $application);
-        $this->assertSingleServerExecution($mutex, $path);
     }
 
-    private function assertSingleServerExecution(RecordingSchedulingMutex $mutex, string $path): void
+    /**
+     * @throws Exception
+     */
+    private function sharesClaimBetweenBothNativeMutexesAndCallback(): void
     {
-        if ($mutex->attempts !== [
-            [
-                'name' => 'blocked',
-                'time' => '2026-10-26 08:00:00',
-            ],
-            [
-                'name' => 'allowed',
-                'time' => '2026-10-26 08:00:00',
-            ],
-        ] || LogRecords::taskMessages($path) !== ['ping', 'ping']) {
-            throw new LogicException('Only due single-server events must acquire a slot; denied events must skip.');
+        $definition = new ScheduleDefinition(
+            'both',
+            PingTask::class,
+            '* * * * *',
+            withoutOverlapping: true,
+            overlapExpiresAfterMinutes: 30,
+            onOneServer: true
+        );
+        $scenario = new MutexScenario([$definition]);
+        $scenario->resolver->onResolve(static function (string $taskClass) use ($scenario): void {
+            A::same(PingTask::class, $taskClass);
+            A::same(1, count($scenario->mutex->issuedClaims));
+            A::same([], $scenario->mutex->finishes);
+        });
+        $scenario->run();
+        $this->assertSuccessfulRun($scenario, $definition);
+    }
+
+    private function assertSuccessfulRun(MutexScenario $scenario, ScheduleDefinition $definition): void
+    {
+        A::same(1, count($scenario->mutex->claims));
+        A::same($definition, $scenario->mutex->claims[0]['definition'] ?? null);
+        A::same([PingTask::class], $scenario->resolver->resolved);
+        A::same(1, count($scenario->mutex->finishes));
+        A::same($scenario->mutex->issuedClaims[0] ?? null, $scenario->mutex->finishes[0]['claim'] ?? null);
+        A::same(RunOutcome::Succeeded, $scenario->mutex->finishes[0]['outcome'] ?? null);
+        A::same(null, $scenario->mutex->finishes[0]['error'] ?? null);
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function supportsIndependentProtectionFlags(): void
+    {
+        foreach ([[true, false], [false, true]] as [$overlap, $oneServer]) {
+            $scenario = new MutexScenario([
+                new ScheduleDefinition(
+                    'sync',
+                    PingTask::class,
+                    '* * * * *',
+                    withoutOverlapping: $overlap,
+                    onOneServer: $oneServer
+                ),
+            ]);
+            $scenario->run();
+            A::same(1, count($scenario->mutex->claims));
+            A::same([PingTask::class], $scenario->resolver->resolved);
+            A::same(RunOutcome::Succeeded, $scenario->mutex->finishes[0]['outcome'] ?? null);
         }
     }
 
     /**
      * @throws Exception
      */
-    private function guardsOverlappingExecution(string $path): void
+    private function skipsLiveOverlapBeforeClaiming(): void
     {
-        $definitions = [
-            new ScheduleDefinition('overlapping', 'missing', '* * * * *', withoutOverlapping: true, onOneServer: true),
-            new ScheduleDefinition('racing', 'missing', '* * * * *', withoutOverlapping: true),
-            new ScheduleDefinition('success', PingTask::class, '* * * * *', withoutOverlapping: true),
-            new ScheduleDefinition('failure', FailingTask::class, '* * * * *', withoutOverlapping: true),
+        $scenario = new MutexScenario([
+            new ScheduleDefinition('blocked', 'missing', '* * * * *', withoutOverlapping: true, onOneServer: true),
+        ], new RecordingExecutionMutex(lockedSchedules: ['blocked']));
+        $scenario->run();
+        A::same(['blocked'], $scenario->mutex->overlapChecks);
+        A::same([], $scenario->mutex->claims);
+        A::same([], $scenario->resolver->resolved);
+        A::same([], $scenario->mutex->finishes);
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function skipsAtomicConflictBeforeResolving(): void
+    {
+        foreach ([[true, false], [false, true], [true, true]] as [$overlap, $oneServer]) {
+            $scenario = new MutexScenario([
+                new ScheduleDefinition(
+                    'racing',
+                    'missing',
+                    '* * * * *',
+                    withoutOverlapping: $overlap,
+                    onOneServer: $oneServer
+                ),
+            ], new RecordingExecutionMutex(deniedSchedules: ['racing']));
+            $scenario->run();
+            A::same(1, count($scenario->mutex->claims));
+            A::same([], $scenario->resolver->resolved);
+            A::same([], $scenario->mutex->finishes);
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function ignoresUnprotectedAndNotDueTasks(): void
+    {
+        $scenario = new MutexScenario([
             new ScheduleDefinition('ordinary', PingTask::class, '* * * * *'),
-        ];
-        $application = new SchedulerApplication();
-        $mutex = new RecordingEventMutex();
-        $application->instance(EventMutex::class, $mutex);
-        $this->runAtFixedTime($path, $definitions, $application);
-        if (
-            $mutex->created !== ['racing', 'success', 'failure'] || $mutex->released !== ['success', 'failure']
-            || LogRecords::taskMessages($path) !== ['ping', 'ping']
-        ) {
-            throw new LogicException('Overlap locks must guard execution and release after success and task failure.');
-        }
-    }
-
-    /**
-     * @param list<ScheduleDefinition> $definitions
-     * @throws Exception
-     */
-    private function runAtFixedTime(string $path, array $definitions, SchedulerApplication $application): void
-    {
-        file_put_contents($path, '');
-        $previousTime = Date::getTestNow();
-        Date::setTestNow('2026-10-26 08:00:00 UTC');
-        try {
-            $executor = TaskServices::executor(TaskServices::container($path));
-            new LaravelAdapter($application, $executor, SchedulerFixtures::configuration($definitions))->run();
-        } finally {
-            Date::setTestNow($previousTime);
-        }
+            new ScheduleDefinition('later', 'missing', '1 8 * * *', withoutOverlapping: true, onOneServer: true),
+        ]);
+        $scenario->run();
+        A::same([PingTask::class], $scenario->resolver->resolved);
+        A::same([], $scenario->mutex->claims);
+        A::same([], $scenario->mutex->overlapChecks);
+        A::same([], $scenario->mutex->finishes);
     }
 }

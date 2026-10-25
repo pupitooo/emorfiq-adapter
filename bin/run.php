@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use App\Scheduler\Application\TaskExecutor;
+use App\Scheduler\Contract\ExecutionMutex;
 use App\Scheduler\Infrastructure\Configuration\InMemorySchedulerConfiguration;
 use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
+use App\Scheduler\Infrastructure\Laravel\Mutex\EventExecutions;
 use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -37,10 +39,21 @@ if (! $executor instanceof TaskExecutor) {
 }
 
 $configuration = new InMemorySchedulerConfiguration($projectDir . '/config/scheduler.json');
+$mutex = $container->get(ExecutionMutex::class);
+if (! $mutex instanceof ExecutionMutex) {
+    throw new LogicException('Execution mutex service must implement ' . ExecutionMutex::class);
+}
+$executions = $container->get(EventExecutions::class);
+if (! $executions instanceof EventExecutions) {
+    throw new LogicException('Event executions service must implement ' . EventExecutions::class);
+}
 
 $adapter = new LaravelAdapter(
     scheduler: $scheduler,
     executor: $executor,
     configuration: $configuration,
+    mutex: $mutex,
+    processId: bin2hex(random_bytes(16)),
+    executions: $executions,
 );
 $adapter->run();

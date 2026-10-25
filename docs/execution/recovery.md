@@ -19,7 +19,7 @@ sequenceDiagram
     A->>DB: Reserve 10:00, overlap deadline 10:05
     A->>A: Process crashes
     Note over DB: After 10:05 row is still in_progress
-    B->>DB: Mark expired run abandoned; record time and actor
+    B->>DB: Mark expired run abandoned#59; record time and actor
     B->>DB: Reserve 10:06 and commit
     B->>B: Task::run()
 ```
@@ -54,7 +54,7 @@ sequenceDiagram
     B->>DB: At 10:06 abandon old run and reserve next occurrence
     B->>B: Task::run()
     A->>DB: At 10:10 finish original run by ID and token
-    DB-->>A: succeeded; finished_at 10:10; retain abandonment at 10:06
+    DB-->>A: succeeded#59; finished_at 10:10#59; retain abandonment at 10:06
     Note over DB: New run remains active and protected
 ```
 

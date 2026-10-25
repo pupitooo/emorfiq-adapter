@@ -50,6 +50,7 @@ nav:
           - Resolution: task-resolution.md
           - Execution: task-execution.md
   - Execution:
+      - Mutex layers: execution/mutex-layers.md
       - Coordination: execution/coordination.md
       - Recovery: execution/recovery.md
       - External effects: execution/external-effects.md

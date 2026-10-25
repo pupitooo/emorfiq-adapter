@@ -1,8 +1,10 @@
 # Execution coordination
 
-This is the agreed contract for the future PostgreSQL execution coordinator.
-The schema and acceptance scenarios exist; production reservation, completion,
-recovery, and runner integration are not implemented. See [verification](verification.md).
+This is the agreed contract for PostgreSQL execution coordination.
+The schema, application coordination layer, Laravel runner integration, and
+acceptance scenarios exist. PostgreSQL reservation, completion, and recovery
+remain unimplemented. See [Mutex layers](mutex-layers.md) to follow the current
+classes and [verification](verification.md) for database acceptance requirements.
 
 ## Execution lifecycle
 

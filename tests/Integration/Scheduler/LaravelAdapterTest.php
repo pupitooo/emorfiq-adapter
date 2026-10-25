@@ -6,8 +6,6 @@ namespace Tests\Integration\Scheduler;
 
 use App\Scheduler\Application\TaskExecutor;
 use App\Scheduler\Domain\ScheduleDefinition;
-use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
-use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use App\Task\Execution\PingTask;
 use App\Task\Infrastructure\Symfony\SymfonyTaskResolver;
 use Exception;
@@ -52,7 +50,7 @@ final readonly class LaravelAdapterTest
         ]);
         $resolver = new SymfonyTaskResolver(new ContainerBuilder());
         $executor = new TaskExecutor($resolver, new NullLogger());
-        $adapter = new LaravelAdapter(new SchedulerApplication(), $executor, $configuration);
+        $adapter = SchedulerFixtures::adapter($executor, $configuration);
         $this->assertMappedEvents($adapter->createSchedule());
         $this->assertMappedEvents($adapter->createSchedule());
     }
@@ -92,7 +90,7 @@ final readonly class LaravelAdapterTest
             new ScheduleDefinition('ping-second', PingTask::class, '* * * * *'),
         ]);
         $executor = TaskServices::executor(TaskServices::container($path));
-        new LaravelAdapter(new SchedulerApplication(), $executor, $configuration)->run();
+        SchedulerFixtures::adapter($executor, $configuration)->run();
 
         $this->assertLog($path);
     }
@@ -111,7 +109,7 @@ final readonly class LaravelAdapterTest
     {
         $resolver = new SymfonyTaskResolver(new ContainerBuilder());
         $executor = new TaskExecutor($resolver, new NullLogger());
-        new LaravelAdapter(new SchedulerApplication(), $executor, SchedulerFixtures::configuration([]))->run();
+        SchedulerFixtures::adapter($executor, SchedulerFixtures::configuration([]))->run();
     }
 
     /**
@@ -124,7 +122,7 @@ final readonly class LaravelAdapterTest
             new ScheduleDefinition('missing', self::class, '* * * * *'),
         ]);
         $executor = TaskServices::executor(TaskServices::container($path));
-        new LaravelAdapter(new SchedulerApplication(), $executor, $configuration)->run();
+        SchedulerFixtures::adapter($executor, $configuration)->run();
         $records = LogRecords::read($path);
         $exception = $records[1]['context']['exception'] ?? null;
         if (
