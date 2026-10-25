@@ -40,21 +40,6 @@ validation behavior.
 Keeping validation at the loading boundary contains that dependency: the
 configuration objects and scheduling code do not depend on Nette.
 
-## Using arrays instead of typed objects
-
-A loader could decode and validate JSON, apply defaults, and pass associative
-arrays to the adapter. The adapter would access `$definition['cron']` instead of
-`$definition->cron`. Validation can still stay in the loader; using arrays does
-not require accepting unchecked input.
-
-This is a reasonable simplification for a small integration with one consumer
-and a stable format. It avoids separate configuration classes, while the shape
-of the arrays must remain clear to every consumer. PHPDoc array shapes can
-support static analysis. Here, the provider contract returns typed objects,
-which give providers and adapters a shared model with constructor types and
-named properties. Switching to arrays would require changing that contract
-and its consumers.
-
 ## Why keep an immutable snapshot
 
 Reading and validating once gives each provider instance a stable view of the
