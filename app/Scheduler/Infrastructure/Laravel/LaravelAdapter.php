@@ -124,9 +124,11 @@ final readonly class LaravelAdapter implements Adapter
             $event->withoutOverlapping($definition->overlapExpiresAfterMinutes, false);
         }
 
-        if ($definition->onOneServer) {
-            $event->onOneServer();
+        if (! $definition->onOneServer) {
+            return;
         }
+
+        $event->onOneServer();
     }
 
     private function occurrence(DateTimeInterface $instant): DateTimeImmutable

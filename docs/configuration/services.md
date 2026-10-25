@@ -1,0 +1,66 @@
+# Service wiring
+
+`bin/run.php` loads `config/services.php` and compiles the Symfony container for
+each invocation. It uses `compile(true)` to resolve environment placeholders
+before using the container directly. The root configuration imports service
+files explicitly, in the order shown below.
+
+## Configuration files
+
+| File under `config/services/` | Responsibility |
+| --- | --- |
+| `logging.php` | Monolog services and the PSR-3 logger alias. |
+| `database.php` | PostgreSQL connection factory, environment arguments, and PDO registration. |
+| `scheduler.php` | Task run storage selection, execution coordinator, and task executor. |
+| `scheduler-laravel.php` | Illuminate mutex aliases, shared event registry, and scheduler runtime. |
+| `tasks.php` | Task discovery, task lifetime, and the task resolver alias. |
+
+Each file that uses autowiring enables it through
+`$services->defaults()->autowire()`. Defaults apply within that file. Constructor
+types supply service dependencies; explicit arguments supply scalar settings.
+Aliases choose implementations for interfaces. Services retrieved directly by
+the CLI remain public; other services stay private.
+
+See [Task services](../task-services.md) for adding tasks and their dependencies.
+
+## Database boundary
+
+`App\Database\PostgresConnectionFactory` creates PDO connections without depending
+on scheduler contracts or exceptions. Connection failures propagate as
+`PDOException`. The factory reads these constructor arguments from the process
+environment:
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_DSN` | PDO PostgreSQL connection string. |
+| `DATABASE_USER` | Database username. |
+| `DATABASE_PASSWORD` | Database password. |
+
+Docker Compose supplies local defaults and passes the variables to the runtime.
+Standalone PHP invocations must supply them explicitly. The PHP bootstrap does
+not load `.env` files; Compose reads `.env` for its own configuration. See the
+[local database guide](../development/database.md) for connection details.
+
+PDO is a non-shared service: each consumer receives its own connection. This
+keeps task transactions separate from the scheduler's coordination transactions.
+The factory service itself can be shared because each `connect()` call creates
+a new connection.
+
+`PostgresTaskRunStorage` remains in scheduler infrastructure because it implements
+the scheduler's `TaskRunStorage` contract and owns task run SQL. Its static `connect()` factory receives the shared connection factory through
+autowiring, creates a dedicated PDO connection, and translates connection failures
+to `MutexStorageException`. Storage is lazy through its interface. Resolving the coordinator
+or building the scheduler does not open a database connection; the first storage
+operation does. Its transaction handling and reservation semantics remain
+scheduler responsibilities. See [Coordination](../execution/coordination.md).
+
+## Scheduler integration
+
+`scheduler.php` chooses `PostgresTaskRunStorage` for `TaskRunStorage` and
+`ExecutionCoordinator` for `ExecutionMutex` independently of Illuminate.
+
+`scheduler-laravel.php` selects `CoordinatedEventMutex` and
+`CoordinatedSchedulingMutex` for Illuminate's mutex interfaces. These aliases let
+autowiring supply `SchedulerApplication` without explicit constructor argument
+bindings. Both mutex implementations use the same shared `EventExecutions`
+registry. See [Mutex layers](../execution/mutex-layers.md) for the runtime flow.

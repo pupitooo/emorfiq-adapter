@@ -30,7 +30,7 @@ flowchart TB
 
     subgraph Persistence["Persistence boundary"]
         Storage["TaskRunStorage<br/>Storage contract"]
-        Postgres["PostgresTaskRunStorage<br/>Placeholder; operations throw"]
+        Postgres["PostgresTaskRunStorage<br/>Transactional PDO storage"]
         Storage -.->|Implemented by| Postgres
     end
 
@@ -43,13 +43,13 @@ flowchart TB
     Adapter -->|Event callback: execute| Execution
     Registry -->|Return same execution context| Execution
     Coordinator --> Storage
-    Postgres -.->|Planned transactional SQL| DB[("PostgreSQL<br/>task_runs and partial unique indexes")]
+    Postgres -->|Transactional SQL| DB[("PostgreSQL<br/>task_runs and partial unique indexes")]
     Execution -->|After confirmed claim, or without protections| Executor
 ```
 
 Solid arrows show calls or context lookup. Dotted **Implemented by** arrows
 identify the implementations selected by dependency injection; they do not add
-another lifecycle step. The dotted SQL arrow is not implemented. The task branch
+another lifecycle step. The SQL arrow represents implemented PostgreSQL operations. The task branch
 ends at `Task::run()`; outcome persistence returns through `ScheduledExecution`
 and the storage branch.
 
@@ -119,13 +119,17 @@ Paths below are relative to the repository root (`src/` in the project workspace
 | Coordination contract | `app/Scheduler/Contract/ExecutionMutex.php` |
 | Coordinator implementation | `app/Scheduler/Application/ExecutionCoordinator.php` |
 | Persistence contract | `app/Scheduler/Contract/TaskRunStorage.php` |
-| PostgreSQL placeholder | `app/Scheduler/Infrastructure/Database/PostgresTaskRunStorage.php` |
+| PostgreSQL storage | `app/Scheduler/Infrastructure/Database/PostgresTaskRunStorage.php` |
 | Task resolution and invocation | `app/Scheduler/Application/TaskExecutor.php` |
 | Claim identity and outcome | `app/Scheduler/Domain/RunClaim.php`, `app/Scheduler/Domain/RunOutcome.php` |
-| Storage aliases and shared mutex dependencies | `config/services/scheduler.php` |
+| PostgreSQL connection factory | `app/Database/PostgresConnectionFactory.php` |
+| Database connections | `config/services/database.php` |
+| Storage and coordinator aliases | `config/services/scheduler.php` |
+| Laravel mutex aliases and shared event registry | `config/services/scheduler-laravel.php` |
 
 `tests/Integration/Scheduler/LaravelLockingTest.php` checks shared claims and
 execution gates. `tests/Integration/Scheduler/ExecutionLifecycleTest.php` checks
 outcomes, infrastructure failures, and stable occurrence time. Both use
-`RecordingExecutionMutex`; they do not verify PostgreSQL persistence. See
+`RecordingExecutionMutex`. The [storage suite](storage.md#storage-tests) verifies
+PostgreSQL persistence and races. See
 [Verification](verification.md) for database checks and the pending recovery harness.

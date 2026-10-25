@@ -2,8 +2,8 @@
 
 This is the agreed contract for PostgreSQL execution coordination.
 The schema, application coordination layer, Laravel runner integration, and
-acceptance scenarios exist. PostgreSQL reservation, completion, and recovery
-remain unimplemented. See [Mutex layers](mutex-layers.md) to follow the current
+[PostgreSQL storage](storage.md) are implemented. Storage tests exercise production
+SQL and concurrency; the full worker-crash acceptance harness remains pending. See [Mutex layers](mutex-layers.md) to follow the current
 classes and [verification](verification.md) for database acceptance requirements.
 
 ## Execution lifecycle

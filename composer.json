@@ -4,6 +4,8 @@
     "type": "project",
     "require": {
         "php": "~8.5.0",
+        "ext-pdo": "*",
+        "ext-pdo_pgsql": "*",
         "dragonmantank/cron-expression": "^3.6",
         "illuminate/console": "^13.0",
         "illuminate/container": "^13.0",
@@ -38,6 +40,7 @@
             "@test"
         ],
         "test": "@php tests/run.php",
+        "test:storage": "@php tests/storage.php",
         "test:recovery": "@php tests/recovery.php",
         "test:recovery:list": "@php tests/recovery.php --list",
         "fix": "@php vendor/bin/ecs check --fix --no-progress-bar"

@@ -72,14 +72,12 @@ the database design has no execution-lock expiration and requires no renewal.
 
 ## Implementation status
 
-Parsing, typed definitions, Illuminate event mapping, and runner checks are
-implemented. Persistent locking is pending: the current `EventMutex` and
-`SchedulingMutex` services throw `LogicException('Not Implemented')` when used.
-Building a schedule with these flags is supported; executing a due protected
-event currently fails explicitly before resolving its task. An event that is
-not due does not request a lock. A future implementation must supply these mutex
-services to `SchedulerApplication` and preserve the distinction between an
-execution lock and a scheduling lock.
+Parsing, typed definitions, Illuminate event mapping, runner checks, and
+[PostgreSQL storage](../execution/storage.md) are implemented. Protected events
+reserve runs through `ExecutionCoordinator` before resolving their tasks. Apply
+the [migrations](../development/migrations.md) before using these options.
+An event that is not due does not request a lock. With both protections disabled,
+the runner invokes the task directly without storage access.
 
 See [LaravelAdapter execution conditions](../adapter/laravel.md#execution-conditions)
 for the current service boundary.

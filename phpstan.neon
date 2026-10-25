@@ -10,6 +10,12 @@ parameters:
             # Scheduler stores callbacks and propagates their failures when events run.
             allowedCheckedExceptionCallables:
                 Illuminate\Console\Scheduling\Schedule::call: 0
+                # These boundaries invoke callbacks synchronously and catch their checked exceptions.
+                App\Scheduler\Infrastructure\Database\PostgresRunTransaction::run: 0
+                App\Scheduler\Infrastructure\Database\PostgresRunTransaction::reserve: 0
+                App\Scheduler\Infrastructure\Database\PostgresRunTransaction::execute: 0
+                Tests\Support\Storage\StorageTestRunner::run: 0
+                Tests\Integration\Storage\PostgresStorageFailureTest::fails: 0
     level: max
     phpVersion: 80500
     paths:

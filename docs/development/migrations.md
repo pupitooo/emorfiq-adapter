@@ -62,9 +62,9 @@ Confirmed completion timestamps are unchanged. Deadlines on rows without
 
 ## Runtime boundary
 
-The migration defines storage only. The future coordinator's reservation,
-ownership, and completion rules are described in [Execution coordination](../execution/coordination.md).
+The migrations define the schema; [PostgreSQL storage](../execution/storage.md)
+implements reservation, ownership, completion, and recovery. Their rules are described in [Execution coordination](../execution/coordination.md).
 See [Recovery scenarios](../execution/recovery.md) for expired overlap locks and crash
 windows, and [External effects](../execution/external-effects.md) for the limits
 of cancellation, idempotence, and fencing. The [verification plan](../execution/verification.md)
-separates schema checks from pending implementation contracts.
+separates schema checks, storage tests, and pending worker acceptance contracts.
