@@ -49,16 +49,9 @@ for skipping behavior and independent locks for different schedule IDs.
 
 ## Runtime boundary
 
-This change defines storage only. The future execution coordinator must reserve
-work atomically and commit before invoking a task. Updates and lease renewals
-must verify the owner token and active status; the table does not enforce token
-ownership automatically.
-
-Lease expiration alone does not change status or release the partial unique
-index. Recovery must explicitly transition an expired row to `abandoned` before
-another protected occurrence can be claimed. It cannot prove the old process
-stopped; external effects still need idempotence or fencing where required.
-
-Single-server occurrence records are retained after success, failure, and
-abandonment. Automatic retries are not implemented. Deleting records also removes
-their deduplication history, so future retention must account for replay rules.
+The migration defines storage only. The future coordinator's reservation,
+ownership, and completion rules are described in [Execution coordination](../execution/coordination.md).
+See [Recovery scenarios](../execution/recovery.md) for expired leases and crash
+windows, and [External effects](../execution/external-effects.md) for the limits
+of cancellation, idempotence, and fencing. The [verification plan](../execution/verification.md)
+separates schema checks from pending implementation contracts.

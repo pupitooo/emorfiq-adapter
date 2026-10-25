@@ -94,6 +94,12 @@ events emitted by Artisan's scheduler command. Our own runner invokes
 `TaskExecutor` explicitly. This keeps the lifecycle available to another adapter
 without recreating Laravel's application event infrastructure.
 
-See [Laravel Scheduler](laravel-scheduler.md) for event selection and current
+See [LaravelAdapter](adapter/laravel.md#select-due-tasks) for event selection,
+[Adapter limitations](adapter/index.md#current-implementation-limits) for current
 runtime limits, and [Log viewer](development/log-viewer.md) for inspecting the
 records locally.
+
+The future persistent coordinator has a separate [execution contract](execution/coordination.md)
+and [recovery design](execution/recovery.md). Its database state is distinct from
+the lifecycle log: a completed effect can still have an unconfirmed database
+outcome if the process or final write fails.

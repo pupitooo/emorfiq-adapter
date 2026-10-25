@@ -77,8 +77,7 @@ The [provider integration test](https://github.com/pupitooo/emorfiq-adapter/blob
 covers loading an actual file, retaining the original configuration after the
 source file changes, rejecting missing files and directories, and propagating
 one representative parser failure. Parser validation cases are covered by unit
-tests. Cron due-time evaluation is covered separately by `DueEventsTest`; see
-[Laravel Scheduler verification](../laravel-scheduler.md#verification).
+tests. Cron due-time evaluation is covered separately by `DueEventsTest`.
 All suites are included in `tests/run.php`.
 
 ## Concurrency options

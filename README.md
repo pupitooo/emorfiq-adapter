@@ -37,29 +37,34 @@ Stop it with `make docs-stop`.
 
 ```mermaid
 flowchart TD
-    Cron["supercronic: every minute"] --> CLI["bin/run.php"]
-    CLI --> Config["JSON → immutable Configuration"]
-    CLI --> Container["Compile Symfony service container"]
-    Config --> Adapter["LaravelAdapter: run()"]
-    Container --> Resolver["SymfonyTaskResolver"]
-    Adapter --> Scheduler["Laravel Scheduler: select due events"]
-    Scheduler --> Executor["TaskExecutor"]
-    Executor --> Resolver
-    Resolver --> Task["Fresh task instance"]
-    Task --> Execution["Execute task: Task::run()"]
+    Operator["Developer / operator<br/>Person"]
+    Trigger["Periodic trigger<br/>External system"]
+    Adapter["Emorfiq Scheduler Adapter<br/>Software system<br/><br/>Loads schedules, selects due work,<br/>and executes application tasks"]
+
+    Operator -->|Configures schedules<br/>and task services| Adapter
+    Trigger -->|Starts execution every minute| Adapter
+
+    classDef person fill:#dcfce7,stroke:#166534,color:#14532d
+    classDef external fill:#ffedd5,stroke:#9a3412,color:#7c2d12
+    classDef system fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
+    class Operator person
+    class Trigger external
+    class Adapter system
 ```
 
-Cron invokes `bin/run.php`, which loads JSON schedules and compiles the Symfony
-service container. `LaravelAdapter` asks Laravel Scheduler to select events due
-under their cron expressions and time zones. `TaskExecutor` resolves the selected tasks
-through the application-owned `TaskResolver` contract and calls `Task::run()`.
-The service container supplies its constructor dependencies.
+*C4 level 1 — system context. Green identifies the person configuring the system,
+orange the external trigger, and blue the adapter as a whole.*
 
-Mutex locking and Crunz integration remain pending.
+The developer or operator supplies schedules and registers application tasks and
+their dependencies. The periodic trigger starts the adapter, which loads the
+configuration, selects due work through a replaceable scheduler integration, and
+resolves tasks through application-owned contracts before calling `Task::run()`.
+Configuration loading, scheduler integration, dependency injection, and task
+execution all belong inside the blue system boundary.
 
 | Topic | Documentation |
 | --- | --- |
-| Execution flow, directories, and dependency boundaries | [Architecture](docs/architecture.md) |
+| Detailed diagram, execution flow, and dependency boundaries | [Architecture](docs/architecture.md) |
 | Lifecycle logs and failure handling | [Task execution](docs/task-execution.md) |
 | Adding tasks and constructor dependencies | [Task services](docs/task-services.md) |
 | Schedule fields, cron, time zones, and validation | [Scheduler JSON](docs/configuration/format.md) |

@@ -42,9 +42,18 @@ nav:
   - Intro: index.md
   - Application:
       - Architecture: architecture.md
-      - Laravel Scheduler: laravel-scheduler.md
-      - Task services: task-services.md
-      - Task execution: task-execution.md
+      - Adapter:
+          - Overview: adapter/index.md
+          - LaravelAdapter: adapter/laravel.md
+      - Tasks:
+          - Services: task-services.md
+          - Resolution: task-resolution.md
+          - Execution: task-execution.md
+  - Execution:
+      - Coordination: execution/coordination.md
+      - Recovery: execution/recovery.md
+      - External effects: execution/external-effects.md
+      - Verification: execution/verification.md
   - Configuration:
       - JSON format: configuration/format.md
       - Cron syntax: configuration/cron.md
