@@ -4,9 +4,48 @@
         {
             "id": "ping",
             "task": "App\\Task\\Execution\\PingTask",
-            "cron": "* * * * *",
+            "cron": "*/10 * * * *",
             "withoutOverlapping": false,
             "onOneServer": false
+        },
+        {
+            "id": "product-feed",
+            "task": "App\\Task\\Execution\\GenerateProductFeedTask",
+            "cron": "0-59/3 * * * *",
+            "withoutOverlapping": true,
+            "overlapExpiresAfterMinutes": 5,
+            "onOneServer": false
+        },
+        {
+            "id": "sales-report",
+            "task": "App\\Task\\Execution\\PrepareSalesReportTask",
+            "cron": "1-59/3 * * * *",
+            "withoutOverlapping": false,
+            "onOneServer": true
+        },
+        {
+            "id": "warehouse-stock-sync",
+            "task": "App\\Task\\Execution\\SyncWarehouseStockTask",
+            "cron": "2-59/3 * * * *",
+            "withoutOverlapping": true,
+            "overlapExpiresAfterMinutes": 5,
+            "onOneServer": true
+        },
+        {
+            "id": "late-completion",
+            "task": "App\\Task\\Execution\\SimulateLateCompletionTask",
+            "cron": "* * * * *",
+            "withoutOverlapping": true,
+            "overlapExpiresAfterMinutes": 1,
+            "onOneServer": true
+        },
+        {
+            "id": "worker-crash",
+            "task": "App\\Task\\Execution\\SimulateWorkerCrashTask",
+            "cron": "* * * * *",
+            "withoutOverlapping": true,
+            "overlapExpiresAfterMinutes": 1,
+            "onOneServer": true
         }
     ]
 }

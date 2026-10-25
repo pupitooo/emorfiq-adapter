@@ -70,7 +70,7 @@ services:
 
   scheduler:
     <<: *runtime
-    command: ["supercronic", "-quiet", "-passthrough-logs", "/app/docker/crontab"]
+    command: ["supercronic", "-quiet", "-passthrough-logs", "-overlapping", "/app/docker/crontab"]
     init: true
     healthcheck:
       test: ["CMD", "pgrep", "-x", "supercronic"]
