@@ -1,178 +1,107 @@
 # Recovery scenarios
 
-Recovery releases stale execution ownership so later occurrences can run.
-It does not retry the abandoned occurrence or reverse its effects. These are
-requirements for the future coordinator, not implemented runtime behavior.
-The [coordination contract](coordination.md) defines normal execution and indexes.
+Recovery frees an expired overlap reservation so a later occurrence can run.
+It does not retry abandoned work or reverse its effects. These are requirements
+for the future coordinator; see [coordination](coordination.md) for the contract
+and [verification](verification.md) for implementation status.
 
-## Process crash and expired lease
+## Recovery before reservation
 
-A process can disappear after committing its reservation. `finally` cannot
-reliably clean up after a killed process, machine failure, or power loss.
-Passing `lease_expires_at` does not change `status`; explicit recovery is needed.
+A killed process or failed machine cannot reliably run cleanup. At the next
+claim for that schedule, recover expired protected `in_progress` rows before
+attempting the new reservation, using short transactional database operations.
 
 ```mermaid
 sequenceDiagram
     participant A as Server A
     participant DB as PostgreSQL
     participant B as Server B
-    A->>DB: Commit 10:00 claim, lease until 10:05
+    A->>DB: Reserve 10:00, overlap deadline 10:05
     A->>A: Process crashes
-    Note over DB: 10:05 passes, status is still in_progress
-    B->>DB: Attempt protected insert without recovery
-    DB-->>B: Active-schedule conflict remains
-    B->>DB: Conditionally abandon expired active row
-    DB-->>B: One row changed
+    Note over DB: After 10:05 row is still in_progress
+    B->>DB: Mark expired run abandoned; record time and actor
     B->>DB: Reserve 10:06 and commit
-    DB-->>B: New owner
     B->>B: Task::run()
 ```
 
-The coordinator should recover the relevant schedule before attempting its next
-claim. A periodic sweep can additionally keep history current for schedules that
-have no new due occurrence. Recovery must ignore live leases and terminal rows,
-be repeatable, and leave unrelated schedules untouched. History is retained.
-`finished_at` on abandonment records when loss was recognized, not a proven task
-completion time.
+Recovery writes `abandoned_at` and `abandoned_by`, leaving `finished_at` empty.
+It ignores live overlap locks, completed rows, already abandoned rows, and rows
+without overlap protection. Repeated recovery preserves the original attribution.
+It must leave other schedules untouched and retain historical rows.
 
-The occurrence index still contains the abandoned 10:00 row when `onOneServer`
-was enabled. Reclaiming 10:00 is rejected; claiming 10:06 is allowed. Automatic
-retry, catch-up, and deduplication-history deletion are outside this contract.
+No periodic sweep is required in the first version. A stale history row may
+remain `in_progress` until another invocation attempts a reservation for that
+schedule. A sweep for monitoring or schedules that never run again is a possible
+extension, not a correctness requirement for the next claim.
+
+With `onOneServer`, the abandoned occurrence remains reserved. A new 10:06
+occurrence may run, but 10:00 cannot be reclaimed. Automatic retry, catch-up, and
+retention that deletes deduplication history are separate features.
+
+## Long tasks without renewal
+
+The deadline is fixed when the run is reserved. There is no heartbeat, renewal
+supervisor, task cancellation signal, or automatic termination on expiry.
+A healthy task must normally finish within the configured overlap duration.
+
+```mermaid
+sequenceDiagram
+    participant A as Original worker
+    participant DB as PostgreSQL
+    participant B as New worker
+    A->>DB: Reserve 10:00, deadline 10:05
+    A->>A: Task continues beyond 10:05
+    B->>DB: At 10:06 abandon old run and reserve next occurrence
+    B->>B: Task::run()
+    A->>DB: At 10:10 finish original run by ID and token
+    DB-->>A: succeeded; finished_at 10:10; retain abandonment at 10:06
+    Note over DB: New run remains active and protected
+```
+
+A late return is success; a late exception is failure with its diagnostic.
+Completion may change `abandoned` to `succeeded` or `failed`, but never restores
+active ownership. The original row's ID and token cannot complete a new row.
+Both success and failure use `finished_at`; abandonment fields remain intact.
+
+Completion after expiry without intervening recovery is accepted too. In that
+case abandonment fields remain empty: expiry alone is not a recovery event.
+A task crossing expiry must not be rejected merely because its completion SQL
+waited for a database row lock.
+
+## Recovery racing with completion
+
+The database must serialize competing transitions and recheck row conditions.
+Both controlled orders are valid:
+
+| First committed transition | Required final state |
+| --- | --- |
+| Completion | Recovery sees a completed row and does nothing; abandonment fields remain empty. |
+| Recovery | Original completion records success or failure and preserves recovery time and actor. |
+
+A confirmed `succeeded` or `failed` result cannot subsequently be overwritten.
+The race must not resurrect `in_progress` or affect a replacement run. Tests use
+two real connections and barriers, including a row-lock wait crossing expiry.
+
+Two servers can also recover and claim concurrently. Only one transition should
+record abandonment; both can compete for the next occurrence, with the unique
+indexes choosing the winner. A losing claim must never resolve the task.
+Conflict handling must leave a usable transaction, for example through a
+conflict-safe insert, rather than continuing in an aborted PostgreSQL transaction.
 
 ## Crash windows and uncertain outcomes
 
-The point of failure determines what we know about effects, but not whether the
-old lease must eventually be recovered.
+| Failure point | What recovery can know |
+| --- | --- |
+| After commit, before task invocation | Reservation exists; there may be no business effects. |
+| During task execution | Some effects may have completed. |
+| After effects, before completion write | Business work may be complete even though the outcome is unknown. |
+| Completion write unavailable | The worker cannot confirm that its result was stored. |
 
-```mermaid
-sequenceDiagram
-    participant R as Runner
-    participant DB as PostgreSQL
-    participant E as External system
-    R->>DB: Commit reservation
-    alt Crash before task invocation
-        Note over R: Task never starts
-    else Crash during task
-        R->>E: Some operations may complete
-        Note over R: Process stops before finishing
-    else Crash after effects
-        R->>E: Complete business operation
-        E-->>R: Success
-        Note over R: Crash before saving succeeded
-    else Completion write unavailable
-        R->>E: Complete business operation
-        R-xDB: Cannot confirm completion
-    end
-    Note over DB: Row remains in_progress until explicit recovery
-    DB->>DB: Later recovery marks abandoned
-```
+In every case the row may remain `in_progress` until recovery marks it
+`abandoned`, with `finished_at` still empty. Recovery must not infer success or
+failure from expiration. If the original process later successfully reports its
+result, update only its row and retain the recovery evidence.
 
-The last two cases can have fully completed effects and an abandoned history
-row. Recovery must never infer failure or success merely from lease expiration.
-A task exception is `failed` only when the current owner can persist that result.
-If the completion write is unavailable, the outcome remains unconfirmed.
-
-## Healthy long task and lease renewal
-
-A live owner can renew before expiry. Renewal keeps the same token and extends
-the deadline; recovery must then leave the row active. The runner needs a real
-renewal mechanism during a blocking `Task::run()`, such as a supervised worker or
-cooperative checkpoints. A loop after `Task::run()` cannot renew a running task.
-
-```mermaid
-sequenceDiagram
-    participant W as Worker
-    participant DB as PostgreSQL
-    participant S as Recovery sweep
-    W->>DB: Claim at 10:00, deadline 10:05
-    W->>W: Task keeps running
-    W->>DB: Renew at 10:04 with matching owner token
-    DB-->>W: Deadline becomes 10:09
-    S->>DB: Recover at 10:05
-    DB-->>S: Nothing expired
-    W->>DB: Complete before 10:09
-    DB-->>W: Mark succeeded
-```
-
-Renewal at or after the deadline is rejected, even if nobody has recovered the
-row yet. An expired owner cannot bring itself back to life. A DB outage during
-renewal means ownership cannot be confirmed; the runner must signal ownership
-loss to cooperative tasks and stop authorizing new protected operations. It
-cannot promise to cancel an already submitted external request.
-
-## Renewal racing with recovery
-
-Reading the row and deciding later is insufficient. Both operations must enforce
-their conditions atomically under database concurrency.
-
-```mermaid
-sequenceDiagram
-    participant W as Worker
-    participant DB as PostgreSQL
-    participant S as Recovery sweep
-    W->>DB: Conditional renewal near deadline
-    S->>DB: Conditional recovery near deadline
-    alt Renewal wins while lease is valid
-        DB-->>W: Extend deadline
-        DB-->>S: Recheck row, renewed lease is live
-    else Recovery wins after expiry
-        DB-->>S: Change in_progress to abandoned
-        DB-->>W: Recheck row, renewal rejected
-    end
-    Note over DB: No abandoned row can be resurrected
-```
-
-Tests must exercise both controlled orders with two real connections and
-barriers, including a statement that waits across the deadline. No sleeps or
-single-threaded in-memory imitation can establish this database guarantee.
-
-## Two servers recovering and claiming
-
-Both servers can observe a stale row. Only one can perform its state transition;
-both can then compete for the next protected occurrence. The unique indexes
-select one winner. The losing runner must not invoke the task.
-
-```mermaid
-sequenceDiagram
-    participant A as Server A
-    participant DB as PostgreSQL
-    participant B as Server B
-    A->>DB: Recover expired row
-    B->>DB: Recover same expired row
-    DB-->>A: One transition
-    DB-->>B: Already recovered, no transition
-    A->>DB: Reserve 10:06
-    B->>DB: Reserve 10:06
-    DB-->>A: Commit winner
-    DB-->>B: Conflict, skip
-    A->>A: Task::run()
-```
-
-Recovery and reservation must leave valid state even when the new insert loses
-or rolls back. They must not erase historical rows. Conflict handling must not
-continue issuing SQL in a failed PostgreSQL transaction without rollback or an
-appropriate savepoint. The implementation can use a conflict-safe insert.
-
-## Late worker completion
-
-A paused process may resume after its row was abandoned and another run began.
-Its original token does not authorize completion or renewal anymore.
-
-```mermaid
-sequenceDiagram
-    participant A as Old worker
-    participant DB as PostgreSQL
-    participant B as New worker
-    B->>DB: Abandon expired old run and claim next occurrence
-    DB-->>B: New run ID and owner token
-    A->>DB: Finish old run with old token
-    DB-->>A: Rejected, old state remains abandoned
-    A->>DB: Renew old run
-    DB-->>A: Rejected
-    A->>DB: Finish new run using old token
-    DB-->>A: Rejected, new state unchanged
-```
-
-This protects scheduler history. It does not stop external operations; see
-[external effects](external-effects.md). The [test plan](verification.md) maps
-these scenarios to executable acceptance tests and states what remains missing.
+Expiry or abandonment cannot stop external operations. A surviving worker may
+continue using an API while disconnected from PostgreSQL. See
+[external effects](external-effects.md) for the resulting limits.

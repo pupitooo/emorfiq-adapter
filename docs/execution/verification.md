@@ -2,108 +2,89 @@
 
 ## Current status and commands
 
-The schema is implemented. Production coordination, its test harness, and the
-additional verification commands below are not included in this documentation
-change. The plan separates database guarantees from acceptance contracts that
-must become green during implementation.
+The schema migrations and SQL checks are implemented. Production coordination,
+runner integration, and the PostgreSQL/worker harness adapter remain pending.
+The acceptance runner fails explicitly until that adapter exists; its scenarios
+are requirements, not evidence of working production coordination.
 
-The existing checks remain `make test` for the application suite and `make check`
-for PHPStan, ECS and that suite. Both run in CI.
-
-### Planned verification commands
-
-These commands and test sources require a separate implementation change.
-
-| Command | Scope | Expected result before implementation |
+| Command | Scope | Current result |
 | --- | --- | --- |
-| `make test-db` | Actual migration and partial indexes on PostgreSQL | Green. |
-| `make test-recovery` | 43 named acceptance scenarios | Red: production harness adapter is missing. |
-| `docker compose run --rm --no-deps -T check composer test:recovery:list` | List acceptance scenarios without running them | Lists 43 scenarios. Rebuild `check` after source changes. |
+| `make check` | PHPStan, ECS, and application tests | Must pass; required in CI. |
+| `make test-db` | Migrations 001 and 002, upgrade history, and partial indexes | Must pass; required in CI. |
+| `make test-recovery` | 43 named acceptance scenarios | Intentionally red: production harness adapter is missing. |
+| `docker compose run --rm --no-deps -T check composer test:recovery:list` | List acceptance scenarios without executing them | Lists 43 scenarios; rebuild `check` after source changes. |
 
-The planned `make test-db` command should stream `tests/Database/setup.sql`, the actual migration, and
-`tests/Database/task-runs.sql` into PostgreSQL in a new per-session
-schema inside a transaction and roll it back. It must leave application tables and
-migration history untouched, require no `make migrate`, and verify which
-unique index rejects each insert. Its 11 planned scenarios cover terminal reservations,
-active overlap, expiry without transition, explicit abandonment, independent
-flags and IDs, predicate boundaries, and repeatable cleanup. Add `make test-db`
-to CI and make it start PostgreSQL if necessary. These SQL checks will not be evidence of
-implemented production recovery or concurrent coordinator correctness.
+`make test-db` streams the real migrations and SQL fixtures into an isolated
+transactional schema and rolls everything back. Its 14 scenarios verify upgrade
+compatibility, retained occurrence reservations, overlap protection, fixed
+expiration, independent flags and IDs, recovery attribution, and late success or
+failure without unlocking a replacement. The legacy fixture is inserted after
+migration 001 and before migration 002. No application migrations need to be
+applied in advance, and application data and migration history remain untouched.
+These checks validate storage and indexes, not production transition SQL or races.
 
-The planned `tests/recovery.php` runner should run each named contract against a
-fresh `RecoveryHarness` from `tests/Support/Recovery/RecoveryHarnessFactory.php`.
-Until the production adapter exists, the factory must throw an explicit pending
-error. Failures must not be swallowed or reported as skips; the command must exit
-nonzero. This preserves a useful red phase before implementation while keeping
-the existing application suite usable. Do not substitute an in-memory coordinator
-to make these tests green.
+The acceptance runner creates a fresh `RecoveryHarness` per scenario and cleans
+it up after both success and failure. The pending factory throws explicitly;
+failures are neither skips nor successes, and the command exits nonzero. Do not
+substitute an in-memory protocol model to make these scenarios green.
 
 ## Harness obligations
 
-Implement this test adapter alongside the production coordinator. It translates
-test operations into production calls; it must not reimplement reservation,
-renewal, or recovery decisions. Each scenario gets isolated real PostgreSQL
-storage. Always clean up connections, workers, and schemas, including failures.
+The adapter must invoke production coordination rather than duplicate its
+reservation, completion, or recovery decisions. Use isolated real PostgreSQL
+storage and clean up connections, workers, and schemas even on failure.
 
-- `at(seconds)` sets a shared controlled ownership clock relative to
-  `2026-10-26 10:00:00 UTC`. `claim` uses a five-minute lease and converts its
-  integer occurrence offset into the intended UTC minute. This is a test lease,
-  not a new user configuration option. The production clock must have the same
-  deadline semantics and be independently checked against PostgreSQL time.
-- `claim` includes recovery for that schedule and a committed reservation;
-  conflicts return null. `recover` returns the number of actual transitions.
-  `renew` and `finish` expose whether ownership was confirmed. Infrastructure
-  exceptions are captured by the test adapter as unsuccessful observed outcomes;
-  production logging and exception behavior must remain visible and be tested
-  during runner integration.
-- `record` and `runs` observe committed state from an independent connection,
-  including while the owner's connection is unavailable. `finish(false)` stores
-  a failure diagnostic. Each claim gets a unique row ID and fresh nonzero UUID.
-- Race methods use two real connections and synchronization barriers. Force both
-  renewal/recovery orders around expiry. Exercise lock waits crossing the deadline;
-  do not use sleeps as the synchronization mechanism. The renewed deadline must
-  be valid at the recovery decision; the abandoned row must never be resurrected.
-- `execute` runs the actual runner with a recording task. The normal task applies
-  two observable effects. `TaskException` throws with a diagnostic before success;
-  `CrashDuringTask` dies after the first effect; `CrashAfterEffect` dies after both.
-  `CrashBeforeTask` dies after commit but before invocation. Abrupt-death modes
-  must bypass task cleanup, for example using a controlled child process.
-- `ReservationRollback` fails before commit. `ReservationAcknowledgementLost`
-  commits and then hides the acknowledgement. `CompletionUnavailable` prevents
-  the final write after both effects. The adapter captures the fault without
-  silently calling the task again. `execute` without faults uses the real runner's
-  task failure handling and final-state writes.
-- `executeLongTask` blocks the real task while its actual renewal supervisor
-  runs. Advance the shared clock through the original lease deadline, run a
-  recovery sweep there, then release the task after the requested duration.
-  Observing success after ten minutes with a five-minute initial lease must
-  demonstrate live renewal during execution, not synthetic renewal after return.
-- The runner probes inspect the committed reservation and transaction boundary
-  at callback entry. Task-resolution and invocation counters are independent, so
-  a denied claim cannot resolve a task and merely skip its invocation later.
-- `disconnectOwner` blocks the owner's DB access while leaving observation and
-  the external probe available. `resumeEffect` resumes a controlled fixture task:
-  its uncooperative variant ignores loss; its cooperative variant checks the
-  cancellation/ownership signal before a new effect. `submitEffect` pauses a
-  request already accepted by the receiver; `completeSubmittedEffect` completes
-  it after ownership loss, independently of cancellation. This does not assert that
-  arbitrary user tasks can be forcibly cancelled.
-- Receiver probe methods atomically deduplicate a stable operation key or enforce
-  a highest observed generation per resource. They illustrate the required
-  external contract, not an implemented scheduler fencing feature. A real task
-  integration must test its actual receiver instead of treating the probe as
-  proof of production idempotence or fencing.
+- `at(seconds)` controls a shared clock relative to `2026-10-26 10:00:00 UTC`.
+  Protected claims use a fixed 300-second overlap lock; there is no renewal.
+  Occurrence offsets are seconds identifying the intended UTC minute. Claims
+  without overlap protection store no execution deadline.
+- `claim` recovers the same schedule as actor `claim-worker`, then confirms a
+  committed reservation. Conflicts return null; infrastructure errors and unknown
+  commit outcomes must remain distinguishable in production diagnostics.
+- `recover` returns the transition count and accepts an actor identity, defaulting
+  to `recovery-worker`. Only expired protected `in_progress` rows change. Store
+  `abandoned_at` and `abandoned_by`, leaving `finished_at` empty.
+- `finish` records the original run's result by ID and token from `in_progress`
+  or `abandoned`, regardless of expiry. Preserve abandonment fields and reject
+  wrong tokens or already confirmed results. `finish(false)` includes a failure
+  diagnostic. Return false for an observed unsuccessful write, including injected
+  infrastructure failure, while preserving production error classification.
+- `record` and `runs` observe committed state from another connection even when
+  the original owner's connection is unavailable. Include nullable fixed expiry,
+  completion time, abandonment time and actor, and error diagnostic.
+- Race helpers use two real sessions and barriers, not sleeps. For
+  `raceCompletionAndRecovery`, set time to 300 and force each commit order.
+  Recovery first retains its audit fields after completion; completion first
+  leaves both fields empty. `finishAfterWaitingPastDeadline` completes at 301
+  after a row-lock wait, without intervening recovery; it must succeed.
+- `execute` uses the real runner and a recording task applying two effects.
+  `TaskException` throws with a diagnostic; crash modes terminate before task
+  invocation, after one effect, or after both effects, bypassing task cleanup.
+  Rollback and lost-acknowledgement modes test reservation failures. Completion
+  unavailability prevents the final write. None may silently retry the task.
+- `executeLongTask` blocks the real task without renewal. Recover at 300 as
+  `recovery-worker`, release the task at the requested duration, and verify late
+  completion with unchanged expiry and preserved recovery history.
+- Runner probes inspect committed state and closed reservation transactions at
+  callback entry. Resolution and invocation counters are independent: denied or
+  unconfirmed reservations must not resolve a task.
+- `disconnectOwner` blocks only that owner's DB access, leaving observation and
+  external probes available. `resumeEffect` does not require cancellation checks.
+  `submitEffect` pauses a request accepted by the receiver;
+  `completeSubmittedEffect` can finish it after abandonment.
+- Receiver probes illustrate stable-key idempotence and ordered fencing per
+  resource. They are boundary examples, not scheduler features or proof of a real
+  receiver's guarantees. Automatic cancellation and ownership-loss signalling
+  are deferred, with no acceptance requirement for them in this version.
 
 ## Scenario coverage
 
-Each scenario below must become an executable assertion against the production
-implementation. These are planned cases; this documentation does not establish
-that they have passed. Use the names as methods under
-`tests/Contract/Recovery/`.
+All 43 scenarios below exist under `tests/Contract/Recovery/`. They must be
+connected to the production harness before claiming runtime correctness.
 
 ### Reservation and indexes
 
-Scenario diagrams: [Reservation and indexes](coordination.md). Suite: `CoordinationContractTest`.
+See [scenario details](coordination.md). Suite: `CoordinationContractTest`.
 
 - `rejectsSameOccurrenceAfterTerminalStates`
 - `blocksLaterOccurrenceWhileProtectedRunIsActive`
@@ -116,7 +97,7 @@ Scenario diagrams: [Reservation and indexes](coordination.md). Suite: `Coordinat
 
 ### Recovery and retained history
 
-Scenario diagrams: [Recovery and retained history](recovery.md). Suite: `RecoveryContractTest`.
+See [scenario details](recovery.md). Suite: `RecoveryContractTest`.
 
 - `abandonsExpiredRunAndAllowsLaterOccurrence`
 - `recoversBeforeClaimingNextOccurrence`
@@ -125,28 +106,28 @@ Scenario diagrams: [Recovery and retained history](recovery.md). Suite: `Recover
 - `keepsRecoveryIdempotentAndPreservesHistory`
 - `ignoresCompletedRunsDuringRecovery`
 - `choosesOneWinnerDuringConcurrentRecoveryAndClaim`
-- `rejectsLateOwnerWithoutChangingReplacement`
+- `acceptsLateCompletionWithoutChangingReplacement`
 
-### Lease ownership and races
+### Completion and races
 
-Scenario diagrams: [Lease ownership and races](recovery.md). Suite: `OwnershipContractTest`.
+See [scenario details](recovery.md#recovery-racing-with-completion). Suite: `OwnershipContractTest`.
 
-- `renewsLiveLeaseWithoutChangingOwner`
-- `rejectsRenewalAndCompletionAtDeadline`
-- `rejectsRenewalAndCompletionAfterDeadline`
-- `rejectsWrongTokenWhileLeaseIsLive`
-- `neverRevivesTerminalRuns`
-- `keepsRenewedLeaseWhenRenewalWinsRecoveryRace`
-- `neverRevivesRunWhenRecoveryWinsRenewalRace`
-- `rechecksDeadlineAfterDatabaseLockWait`
-- `signalsOwnershipLossWhenRenewalCannotReachDatabase`
+- `acceptsCompletionAtDeadline`
+- `acceptsCompletionAfterDeadlineWithoutRecovery`
+- `acceptsLateSuccessAndPreservesAbandonment`
+- `acceptsLateFailureAndPreservesAbandonment`
+- `rejectsWrongTokenBeforeAndAfterRecovery`
+- `keepsConfirmedResultsImmutable`
+- `acceptsCompletionAfterDatabaseLockWait`
+- `preservesAbandonmentWhenRecoveryWinsCompletionRace`
+- `avoidsAbandonmentWhenCompletionWinsRecoveryRace`
 
 ### Runner and crash windows
 
-Scenario diagrams: [Runner and crash windows](recovery.md#crash-windows-and-uncertain-outcomes). Suite: `ExecutionContractTest`.
+See [scenario details](recovery.md#crash-windows-and-uncertain-outcomes). Suite: `ExecutionContractTest`.
 
 - `commitsReservationBeforeResolvingAndRunningTask`
-- `renewsLeaseWhileTaskIsBlocked`
+- `recordsLateCompletionWithoutRenewingLock`
 - `persistsTaskFailureAndReleasesActiveReservation`
 - `neverResolvesTaskAfterLosingClaim`
 - `neverInvokesTaskAfterReservationRollback`
@@ -158,49 +139,40 @@ Scenario diagrams: [Runner and crash windows](recovery.md#crash-windows-and-unce
 
 ### External effects and receiver boundaries
 
-Scenario diagrams: [External effects and receiver boundaries](external-effects.md). Suite: `ExternalEffectsContractTest`.
+See [scenario details](external-effects.md). Suite: `ExternalEffectsContractTest`.
 
 - `demonstratesSurvivingWorkerCanActAfterAbandonment`
 - `cannotCancelAlreadySubmittedExternalRequest`
-- `stopsCooperativeWorkerAfterOwnershipLoss`
+- `doesNotAutomaticallyCancelWorkerAfterExpiry`
 - `deduplicatesStableBusinessOperationKeysAtReceiver`
 - `demonstratesDifferentKeysDoNotDeduplicateEffects`
 - `rejectsOlderGenerationAfterReceiverObservesNewOwner`
 - `keepsFencingGenerationsIndependentForDifferentResources`
 - `demonstratesFencingCannotUndoEarlierAcceptedWrites`
 
-## Completion criteria and remaining decisions
+## Production completion criteria
 
-Documentation and the planned contracts define the target behavior. This does not
-mean only a small mutex class remains. Completion requires all of the following:
+The fixed-expiration policy and completion semantics are agreed. Remaining work
+is implementation, not a pending decision about renewal or periodic recovery:
 
-1. Implement transactional PostgreSQL reservation, conditional renewal and
-   completion, explicit recovery, token validation, error classification, and
-   conflict handling. Add the PHP database driver, connection configuration, and
-   dependency injection needed by the runtime and tools images.
-2. Integrate one execution lifecycle with `LaravelAdapter`, `TaskExecutor`,
-   `SchedulingMutex`, and `EventMutex`. The existing two mutex callbacks must not
-   create two unrelated execution rows or reserve an occurrence without a clear
-   owner and lifecycle. Denied or uncertain claims must not resolve tasks.
-3. Decide and implement the renewal supervision/cancellation mechanism during
-   blocking tasks, its cadence, and production lease policy, including schedules
-   using only `onOneServer`. The current overlap duration option alone does not
-   define all those operational choices. Decide whether an additional periodic
-   recovery sweep is needed beyond recovery before the next claim.
-4. Connect the harness to production calls, real connections, controlled workers,
-   fault injection, and the clock. Run all 43 contracts and fix the implementation
-   until green. Verify real database-time SQL, lock-wait boundaries, diagnostics,
-   and the runner's integration. A green model of the protocol is insufficient.
-5. Add `make test-recovery` to required CI checks and the normal completion gate
-   when the harness and implementation exist. Remove obsolete tests asserting
-   `Not Implemented`; update implementation-status documentation. Keep schema
-   checks and existing task behavior green.
-6. For effectful tasks, establish and verify business idempotence, cooperative
-   cancellation, or receiver-side fencing as required by their actual effects.
-   The scheduler cannot supply an unconditional exactly-once effects guarantee.
+1. Implement short transactional claims, original-owner completion, explicit
+   recovery attribution, token validation, and conflict/error classification.
+   Add the PostgreSQL driver, connection configuration, and dependency injection.
+2. Integrate one run lifecycle with `LaravelAdapter`, `TaskExecutor`,
+   `SchedulingMutex`, and `EventMutex`. Two mutex callbacks must not reserve two
+   unrelated rows. Late completion updates only its own run, preserving a
+   replacement's active reservation.
+3. Connect the production harness, real sessions, controlled workers, clock, and
+   fault injection. Run all 43 acceptance scenarios, including both recovery and
+   completion race orders. Verify actual database-time SQL after lock waits.
+4. Once implemented, require `make test-recovery` in CI and the completion gate.
+   Replace obsolete `Not Implemented` assertions and update runtime status docs.
+5. Validate real external integrations where effects require idempotence or
+   receiver-side concurrency protection; scheduler indexes cannot provide an
+   unconditional exactly-once effects guarantee.
 
-Automatic retry, replay/catch-up, retention that deletes deduplication history,
-and a general fencing protocol are separate features. Do not introduce them
-implicitly as part of recovery. Without them, the coordinator can still be
-complete for the contract described here: expired ownership is recoverable,
-future occurrences can run, and past protected occurrences remain reserved.
+Renewal, periodic recovery sweeps, task ownership-loss signals, process
+termination, automatic retries, catch-up, deduplication-history deletion, overlap
+detection, and general fencing are deferred extensions. The first version
+recovers expired overlap locks before claims, preserves occurrence reservations,
+and accepts the original process's eventual result with retained recovery history.

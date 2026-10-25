@@ -1,130 +1,124 @@
 # Execution coordination
 
-This is the target contract for the future PostgreSQL execution coordinator.
-The schema exists; production reservation, renewal, recovery, and runner wiring
-are not implemented. See [verification and remaining work](verification.md).
+This is the agreed contract for the future PostgreSQL execution coordinator.
+The schema and acceptance scenarios exist; production reservation, completion,
+recovery, and runner integration are not implemented. See [verification](verification.md).
 
-## Two independent protections
+## Execution lifecycle
 
-An occurrence is `(schedule_id, scheduled_for)`, where `scheduled_for` is the
-intended UTC minute, shared by all scheduler processes. It is not the time at
-which each process happens to start. All instances must use consistent IDs and
-concurrency settings. Different IDs remain independent, even for one task class.
+The runner reserves an occurrence in a short transaction before resolving the
+service or calling `Task::run()`. A confirmed reservation gets a fresh row ID and
+unpredictable `owner_token`. The transaction must commit before task execution;
+it must not remain open while the task runs.
 
-| Protection | Unique index | Lifetime |
-| --- | --- | --- |
-| `onOneServer` | `task_runs_occurrence`: `(schedule_id, scheduled_for)` where `on_one_server` | While the historical row exists, including after success, failure, or abandonment. |
-| `withoutOverlapping` | `task_runs_active_schedule`: `schedule_id` where `without_overlapping AND status = 'in_progress'` | Until an explicit status transition removes the row from the predicate. |
+The coordinator contract is independent of Laravel:
 
-These are partial indexes: unprotected rows are outside their predicates.
-Enabling both options combines both guarantees. Disabling both permits duplicate
-occurrences and concurrent executions. Enabling only overlap protection permits
-the same occurrence again after the previous run finishes.
+| Operation | Responsibility |
+| --- | --- |
+| Claim | Recover expired overlap locks for this schedule, then attempt a committed reservation. Distinguish a conflict from an infrastructure error or unknown commit outcome. |
+| Finish | Record the original run's success or failure using its row ID and owner token, even after expiry or abandonment. |
+| Recover | Mark expired protected `in_progress` rows as `abandoned`, recording detection time and the recovering process identity. |
 
-### Same occurrence on two servers
-
-A fast completion must not let a second server execute the same occurrence.
-The occurrence reservation survives all terminal states. This prevents duplicate
-claims; it does not guarantee that the task completed its effects exactly once.
-
-```mermaid
-sequenceDiagram
-    participant A as Server A
-    participant DB as PostgreSQL
-    participant B as Server B
-    A->>DB: Claim sync at 10:00 (onOneServer)
-    DB-->>A: Commit reservation
-    A->>A: Task::run()
-    A->>DB: Mark succeeded
-    B->>DB: Claim sync at 10:00
-    DB-->>B: Conflict on occurrence index
-    Note over B: Skip before resolving task
-    B->>DB: Claim sync at 10:01
-    DB-->>B: Allowed by occurrence index
-```
-
-### Different occurrences during one long run
-
-Only the active-schedule index blocks the next minute while the earlier run
-holds a valid execution lease. Conflicts skip that invocation; they do not queue
-work or create a failed execution record.
-
-```mermaid
-sequenceDiagram
-    participant A as Server A
-    participant DB as PostgreSQL
-    participant B as Server B
-    A->>DB: Claim sync at 10:00 (withoutOverlapping)
-    DB-->>A: Commit active reservation
-    A->>A: Task::run() continues
-    B->>DB: Claim sync at 10:01
-    DB-->>B: Conflict on active-schedule index
-    A->>DB: Mark succeeded or failed
-    Note over DB: Row leaves active-schedule index
-    B->>DB: Claim next due occurrence
-    DB-->>B: Allowed
-```
-
-With `onOneServer` alone, the 10:01 claim is allowed even while 10:00 is running.
-With `withoutOverlapping` alone, a second 10:00 claim is allowed after completion.
-
-## Reservation and normal completion
-
-The coordinator atomically recovers expired ownership and attempts a reservation
-in a short transaction. It commits before resolving or invoking the task. It
-must not keep that reservation transaction open during `Task::run()`.
-A separate connection must be able to observe the reservation when the callback
-starts. A losing claim never resolves the task.
+Renewal, worker supervision, ownership-loss signals, and automatic task termination
+are deferred extensions. They are not required by this first implementation.
 
 ```mermaid
 sequenceDiagram
     participant R as Runner
     participant DB as PostgreSQL
     participant T as Task
-    R->>DB: Begin short transaction
-    R->>DB: Abandon expired active rows for schedule
-    R->>DB: Insert occurrence with fresh owner_token
-    alt Reservation confirmed committed
-        DB-->>R: Commit acknowledged
+    R->>DB: Recover expired overlap lock and insert reservation
+    alt Commit confirmed
+        DB-->>R: Run ID and owner token
         R->>T: Resolve and call Task::run()
-        alt Task returns
-            R->>DB: Conditional finish as succeeded
-        else Task throws
-            R->>DB: Conditional finish as failed with error
-        end
-    else Conflict or reservation failure
-        DB-->>R: No confirmed reservation
+        T-->>R: Return or throw
+        R->>DB: Finish original run by ID and token
+    else Conflict or unconfirmed reservation
         Note over R,T: Do not resolve or invoke task
     end
 ```
 
-A rollback leaves no reservation. Losing the commit acknowledgement is different:
-the row may have committed. Do not invoke the task on an unconfirmed reservation
-or blindly retry it; the row can later expire and be recovered. This deliberately
-prefers a missed execution over a duplicate invocation.
+Conflicts skip the invocation; they do not queue work or create failed run rows.
+A rollback leaves no reservation. A lost commit acknowledgement may leave a
+committed row, so the runner must neither invoke the task nor blindly retry an
+unconfirmed claim. This deliberately prefers a missed execution over a duplicate.
 
-## Ownership and state transitions
+## Two independent protections
 
-Each claim has a fresh unpredictable `owner_token`. Renewal and completion must
-match the row ID, token, `status = 'in_progress'`, and an unexpired lease.
-A lease is valid only while `now < lease_expires_at`; equality is expired.
-Zero updated rows means that ownership was not confirmed. Terminal states cannot
-be revived by a late callback.
+An occurrence is `(schedule_id, scheduled_for)`, where `scheduled_for` is the
+intended UTC minute shared by scheduler processes, not each process's start time.
+All instances must use consistent IDs and concurrency options. Different IDs
+remain independent even if they resolve the same task class.
+
+| Protection | Unique index | Lifetime |
+| --- | --- | --- |
+| `onOneServer` | `task_runs_occurrence`: `(schedule_id, scheduled_for)` where `on_one_server` | While the historical row exists, including after success, failure, or abandonment. |
+| `withoutOverlapping` | `task_runs_active_schedule`: `schedule_id` where `without_overlapping AND status = 'in_progress'` | Until completion or explicit recovery changes the row's status. |
+
+These partial indexes exclude rows without their respective option. Both flags
+are disabled by default. Enabling both combines both guarantees.
+
+- `onOneServer` selects one winner for an occurrence. A 10:01 run can start while
+  10:00 is still running. It neither pins a schedule to one machine nor imposes
+  an execution deadline. Its rows have `lease_expires_at = NULL` unless overlap
+  protection is also enabled.
+- `withoutOverlapping` skips subsequent invocations while the active reservation
+  remains protected. Used alone, it permits the same occurrence again after
+  completion. It therefore does not replace occurrence deduplication.
+- Disabling both permits concurrent runs and duplicate occurrences.
+
+The single-server reservation remains after quick completion, preventing a
+second server from executing the same scheduled minute. This reserves an
+occurrence; it does not guarantee exactly-once business effects.
+
+## Fixed overlap expiration
+
+`overlapExpiresAfterMinutes` is the fixed overlap-lock lifetime from reservation,
+with the existing default of 60 minutes. It applies only with
+`withoutOverlapping: true`; no second lease-duration option is introduced.
+The deadline is stored in the existing `lease_expires_at` column despite that
+column's historical name. It is never extended in this version.
+
+Protection is valid while `now < lease_expires_at`; equality is expired.
+Recovery before the next claim explicitly removes an expired row from the
+active index by changing its status. Time passing alone does not change a row or
+free the partial unique index.
+
+Set expiration longer than the expected maximum execution time, with margin.
+A long task can outlive its lock and overlap a new run. Expiration does not kill
+the process, cancel requests, or determine whether the task succeeded.
+See [long tasks](recovery.md#long-tasks-without-renewal).
+
+Use an authoritative clock, preferably database time, for recovery decisions.
+Evaluate time after any relevant row-lock wait, rather than relying on a stale
+transaction-start timestamp. Contract tests use a controlled clock.
+
+## Completion and retained recovery history
+
+`status` represents the latest known execution outcome. Recovery is a provisional
+observation, so `abandoned` can later become `succeeded` or `failed` when the
+original process reports its result. It must never become `in_progress` again.
 
 | Current state | Event | Result |
 | --- | --- | --- |
-| `in_progress`, valid lease and matching token | Task returns | `succeeded` |
-| `in_progress`, valid lease and matching token | Task throws | `failed` with diagnostic |
-| `in_progress`, valid lease and matching token | Renewal succeeds | Later `lease_expires_at`, same token |
-| `in_progress`, expired lease | Explicit recovery | `abandoned` |
-| Terminal, wrong token, or expired lease | Renewal or completion | Rejected, row unchanged |
+| `in_progress`, with or without expired overlap lock | Original task returns | `succeeded`, set `finished_at` |
+| `in_progress`, with or without expired overlap lock | Original task throws | `failed`, set `finished_at` and diagnostic |
+| Protected `in_progress`, expired lock | Recovery | `abandoned`, set `abandoned_at` and `abandoned_by`; leave `finished_at` empty |
+| `abandoned` | Original task returns or throws | Set actual result and `finished_at`; preserve both abandonment fields |
+| `succeeded` or `failed` | Repeated or conflicting completion | Reject; preserve the confirmed result and its timestamp |
+| Any state | Completion with wrong run ID or token | Reject without changing the row |
 
-Use one authoritative clock for ownership decisions, preferably database time.
-Production statements must evaluate time after any relevant lock wait; a stale
-transaction-start timestamp must not authorize an expired owner. Contract tests
-use a controlled clock instead of sleeping. The production clock and its SQL
-expression still need implementation and real-database verification.
+`finished_at` is exclusively the completion time reported by the original
+process, not recovery detection time. `abandoned_by` identifies the recovering
+process instance. Repeated recovery must not overwrite attribution or time.
+No separate `succeeded_at`, `failed_at`, or combined overlap status is needed.
 
-`abandoned` means that execution ownership or outcome cannot be confirmed. It
-does not mean that the process stopped or that its changes were rolled back.
-See [recovery scenarios](recovery.md) and [external effects](external-effects.md).
+Completion checks row ID, token, and status in (`in_progress`, `abandoned`), not
+unexpired ownership. It updates only that row. It must not delete a schedule-wide
+lock, change the replacement run, or restore the old deadline. A zero-row update
+means no result was recorded; infrastructure failures must remain distinguishable.
+
+An abandonment timestamp alone is not proof of physical overlap: the original
+worker may have crashed. Actual recorded run intervals can be compared where a
+completion is known. Automatic overlap detection is not part of this change.
+See [recovery](recovery.md) and [external effects](external-effects.md).

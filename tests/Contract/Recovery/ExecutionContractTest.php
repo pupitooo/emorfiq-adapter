@@ -18,7 +18,7 @@ final readonly class ExecutionContractTest
     {
         return [
             $this->commitsReservationBeforeResolvingAndRunningTask(...),
-            $this->renewsLeaseWhileTaskIsBlocked(...),
+            $this->recordsLateCompletionWithoutRenewingLock(...),
             $this->persistsTaskFailureAndReleasesActiveReservation(...),
             $this->neverResolvesTaskAfterLosingClaim(...),
             $this->neverInvokesTaskAfterReservationRollback(...),
@@ -40,13 +40,15 @@ final readonly class ExecutionContractTest
         A::same('succeeded', A::onlyRun($h, 'sync')->status);
     }
 
-    private function renewsLeaseWhileTaskIsBlocked(RecoveryHarness $h): void
+    private function recordsLateCompletionWithoutRenewingLock(RecoveryHarness $h): void
     {
         $h->executeLongTask('sync', 0, 600);
         $run = A::onlyRun($h, 'sync');
         A::same('succeeded', $run->status);
         A::same(600, $run->finishedAt);
-        A::same(true, $run->leaseExpiresAt > 600);
+        A::same(300, $run->leaseExpiresAt);
+        A::same(300, $run->abandonedAt);
+        A::same('recovery-worker', $run->abandonedBy);
         A::same(1, $h->taskStarts());
         A::same(2, $h->effectCount());
     }

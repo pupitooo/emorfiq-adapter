@@ -18,7 +18,7 @@ final readonly class ExternalEffectsContractTest
         return [
             $this->demonstratesSurvivingWorkerCanActAfterAbandonment(...),
             $this->cannotCancelAlreadySubmittedExternalRequest(...),
-            $this->stopsCooperativeWorkerAfterOwnershipLoss(...),
+            $this->doesNotAutomaticallyCancelWorkerAfterExpiry(...),
             $this->deduplicatesStableBusinessOperationKeysAtReceiver(...),
             $this->demonstratesDifferentKeysDoNotDeduplicateEffects(...),
             $this->rejectsOlderGenerationAfterReceiverObservesNewOwner(...),
@@ -34,8 +34,9 @@ final readonly class ExternalEffectsContractTest
         $h->at(300);
         A::claimed($h->claim('sync', 300));
         A::same('abandoned', $h->record($old)->status);
-        A::same(true, $h->resumeEffect($old, cooperative: false));
+        A::same(true, $h->resumeEffect($old));
         A::same(1, $h->effectCount());
+        // The owner remains disconnected; the result cannot be persisted yet.
         A::same(false, $h->finish($old));
     }
 
@@ -45,18 +46,20 @@ final readonly class ExternalEffectsContractTest
         $h->submitEffect($old);
         $h->at(300);
         A::same(1, $h->recover('sync'));
-        A::same(false, $h->resumeEffect($old, cooperative: true));
         A::same(true, $h->completeSubmittedEffect($old));
         A::same(1, $h->effectCount());
     }
 
-    private function stopsCooperativeWorkerAfterOwnershipLoss(RecoveryHarness $h): void
+    private function doesNotAutomaticallyCancelWorkerAfterExpiry(RecoveryHarness $h): void
     {
         $old = A::claimed($h->claim('sync', 0));
         $h->at(300);
         A::same(1, $h->recover('sync'));
-        A::same(false, $h->resumeEffect($old, cooperative: true));
-        A::same(0, $h->effectCount());
+        A::same(true, $h->resumeEffect($old));
+        A::same(1, $h->effectCount());
+        A::same(true, $h->finish($old));
+        A::same('succeeded', $h->record($old)->status);
+        A::same(300, $h->record($old)->abandonedAt);
     }
 
     private function deduplicatesStableBusinessOperationKeysAtReceiver(RecoveryHarness $h): void

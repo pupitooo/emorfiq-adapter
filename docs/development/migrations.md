@@ -23,17 +23,24 @@ released migrations unchanged. Rollback migrations are not supplied.
 
 ## Task run structure
 
-Migration `001_task_runs.sql` creates one row per claimed execution, with:
+Migration `001_task_runs.sql` creates one row per claimed execution. Migration
+`002_task_run_completion.sql` separates recovery history from completion and
+allows an empty overlap deadline for runs without overlap protection. Together
+they store:
 
 - The schedule ID and planned UTC minute, separate from actual start time.
 - A snapshot of task class, cron expression, time zone, and concurrency options.
-- Status, owner token, lease expiration, actual start/finish times, and error message.
+- Status, owner token, fixed overlap expiration, actual start/finish times, and error message.
+- Recovery detection time (`abandoned_at`) and recovering process identity (`abandoned_by`).
 
 The application is responsible for validating strings, expiration,
 timestamps, and lifecycle state. The intended statuses are `in_progress`,
 `succeeded`, `failed`, and `abandoned`. `abandoned` means ownership was lost or
-execution could not be confirmed, not that its effects were undone. The migration
-defines storage types, required columns, primary keys, and coordination indexes;
+execution could not be confirmed, not that its effects were undone. A late
+original completion can change it to `succeeded` or `failed`, setting
+`finished_at` while preserving abandonment fields. Recovery itself leaves
+`finished_at` empty. The migrations define storage types, required columns,
+primary keys, and coordination indexes;
 it does not add validation `CHECK` constraints.
 
 | Option | Database rule |
@@ -47,11 +54,17 @@ same schedule IDs and configuration. The minute is the intended occurrence
 instant, not a per-process timestamp. See [Concurrency](../configuration/concurrency.md)
 for skipping behavior and independent locks for different schedule IDs.
 
+Migration 002 copies legacy abandoned rows' `finished_at` into `abandoned_at`
+and clears `finished_at`. Their original recovering process was not recorded,
+so `abandoned_by = 'legacy:unknown'` explicitly records that limitation.
+Confirmed completion timestamps are unchanged. Deadlines on rows without
+`without_overlapping` become null; occurrence reservations remain intact.
+
 ## Runtime boundary
 
 The migration defines storage only. The future coordinator's reservation,
 ownership, and completion rules are described in [Execution coordination](../execution/coordination.md).
-See [Recovery scenarios](../execution/recovery.md) for expired leases and crash
+See [Recovery scenarios](../execution/recovery.md) for expired overlap locks and crash
 windows, and [External effects](../execution/external-effects.md) for the limits
 of cancellation, idempotence, and fencing. The [verification plan](../execution/verification.md)
 separates schema checks from pending implementation contracts.

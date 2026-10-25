@@ -143,8 +143,8 @@ functionality ourselves.
   `TaskExecutor`, with concurrency controlled by the worker count. A queue system
   could supply retries, backoff and execution timeouts independently of the
   scheduling library. Define ordering, failure and cancellation semantics, and
-  provide a real renewal mechanism during long tasks; see
-  [long-task ownership](../execution/recovery.md#healthy-long-task-and-lease-renewal).
+  consider renewal if long tasks must retain their overlap lock; see
+  [long-task limits](../execution/recovery.md#long-tasks-without-renewal).
 - **Finer scheduling precision:** update both the trigger and runner if tasks
   need to be scheduled more frequently than once per minute.
 - **Additional integrations:** implement `CrunzAdapter`, alternative configuration
