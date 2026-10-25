@@ -186,9 +186,9 @@ final readonly class TaskExecutionLoggingTest
     private function adapter(string $path, array $definitions): LaravelAdapter
     {
         return new LaravelAdapter(
+            new SchedulerApplication(),
             TaskServices::executor(TaskServices::container($path)),
             SchedulerFixtures::configuration($definitions),
-            new SchedulerApplication(),
         );
     }
 }

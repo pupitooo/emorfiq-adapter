@@ -62,9 +62,9 @@ final readonly class LaravelLockingTest
         $definitions = new JsonConfigurationParser()->parse($json)->tasks;
         $executor = new TaskExecutor(new SymfonyTaskResolver(new ContainerBuilder()), new NullLogger());
         $adapter = new LaravelAdapter(
+            new SchedulerApplication(),
             $executor,
             SchedulerFixtures::configuration($definitions),
-            new SchedulerApplication(),
         );
         foreach (array_values($adapter->createSchedule()->events()) as $index => $event) {
             $this->assertMappedOptions($index, $event->withoutOverlapping, $event->expiresAt, $event->onOneServer);
@@ -95,9 +95,9 @@ final readonly class LaravelLockingTest
         ] as $definition) {
             $executor = new TaskExecutor(new SymfonyTaskResolver(new ContainerBuilder()), new NullLogger());
             $adapter = new LaravelAdapter(
+                new SchedulerApplication(),
                 $executor,
                 SchedulerFixtures::configuration([$definition]),
-                new SchedulerApplication(),
             );
             $this->assertLockFailure($adapter);
         }
@@ -190,7 +190,7 @@ final readonly class LaravelLockingTest
         Date::setTestNow('2026-10-26 08:00:00 UTC');
         try {
             $executor = TaskServices::executor(TaskServices::container($path));
-            new LaravelAdapter($executor, SchedulerFixtures::configuration($definitions), $application)->run();
+            new LaravelAdapter($application, $executor, SchedulerFixtures::configuration($definitions))->run();
         } finally {
             Date::setTestNow($previousTime);
         }
