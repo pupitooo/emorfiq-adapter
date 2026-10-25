@@ -79,7 +79,5 @@ See [Database](database.md) for Adminer login details, SQL access, and storage.
 Tests cover task logging, JSON parsing and validation, cached configuration
 snapshots, task service resolution, and execution of configured definitions.
 CI runs `make test` and `make check`.
-See [Recovery verification](../execution/verification.md) for planned database
-checks, recovery acceptance contracts, and the implementation completion gate.
 
 Documentation commands are described in [Documentation workflow](documentation.md).

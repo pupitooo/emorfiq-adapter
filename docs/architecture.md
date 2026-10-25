@@ -38,7 +38,7 @@ Follow the topic links for details.
 
 | Responsibility | Where to look in code | Documentation |
 | --- | --- | --- |
-| Prepare dependencies and start the adapter. | `run.php`<br>`services.php` | [Service wiring](configuration/services.md) |
+| Prepare dependencies and start the adapter. | `run.php`<br>`services.php` | [Service wiring](development/service-wiring.md) |
 | Load and validate schedules into immutable configuration objects. | `InMemorySchedulerConfiguration.php`<br>`JsonConfigurationParser.php` | [Configuration design](configuration/loading.md), [JSON format](configuration/format.md) |
 | Map definitions to scheduler events, select due work, and run execution gates. | `LaravelAdapter.php`<br>`SchedulerApplication.php`<br>`Schedule.php` | [Adapter](adapter/index.md), [Laravel integration](adapter/laravel.md) |
 | Share one execution claim between scheduling gates and the callback; record the outcome. | `ScheduledExecution.php`<br>`ExecutionCoordinator.php`<br>`CoordinatedEventMutex.php`<br>`CoordinatedSchedulingMutex.php`<br>`EventExecutions.php` | [Mutex layers](execution/mutex-layers.md), [Coordination](execution/coordination.md) |

@@ -28,14 +28,16 @@ Both protections default to disabled.
 | `overlapExpiresAfterMinutes` | positive integer | `60` | Execution lock lifetime in minutes (1 hour by default). May be specified only when `withoutOverlapping` is `true`. |
 | `onOneServer` | boolean | `false` | Allow only the server that acquires the scheduling lock to execute an occurrence. |
 
-Flags accept only JSON `true` or `false`. Explicit expiration requires
-`withoutOverlapping: true` and an integer greater than zero. The parser rejects
-it when that flag is omitted or `false`, even if `onOneServer` is `true` or the
-expiration equals the default `60`. Omit expiration to use the 60-minute default.
-Strings, floating-point numbers, explicit `null`, and unknown fields are rejected.
+- Flags accept only JSON `true` or `false`.
+- Explicit expiration requires `withoutOverlapping: true` and an integer greater
+  than zero.
+- Expiration is rejected when `withoutOverlapping` is omitted or `false`, even if
+  `onOneServer` is `true`.
+- With `withoutOverlapping: true`, omit expiration to use the 60-minute default.
+- Strings, floating-point numbers, explicit `null`, and unknown fields are rejected.
 
-The current sample in `config/scheduler.json` explicitly disables both protections
-and omits expiration, so it continues to run without locking.
+Three additional demo schedules illustrate the individual protections and their
+combination. See [Manual concurrency testing](../development/concurrency-demo.md).
 
 ## Overlapping runs
 
@@ -50,6 +52,11 @@ Expiration allows eventual recovery if a process cannot release
 it. Set it longer than the expected maximum execution time: expiration can allow
 another run even while the original process is still running. It is not a task
 timeout and does not terminate the original execution.
+
+The database [run history](../execution/history.md) retains the expiration
+deadline, completion time, and outcome. If recovery marks the run abandoned,
+the abandonment details remain recorded even if the original execution later
+succeeds or fails.
 
 ## One server
 
@@ -77,7 +84,8 @@ Parsing, typed definitions, Illuminate event mapping, runner checks, and
 reserve runs through `ExecutionCoordinator` before resolving their tasks. Apply
 the [migrations](../development/migrations.md) before using these options.
 An event that is not due does not request a lock. With both protections disabled,
-the runner invokes the task directly without storage access.
+the runner records a fresh history row and its outcome without acquiring locks.
+Apply the migration before running any task. See [History and locks](../execution/history.md).
 
 See [LaravelAdapter execution conditions](../adapter/laravel.md#execution-conditions)
 for the current service boundary.
@@ -85,9 +93,8 @@ for the current service boundary.
 ## Persistent coordination design
 
 The PostgreSQL target design keeps occurrence deduplication separate from active
-execution ownership. See [Execution coordination](../execution/coordination.md),
-[Recovery scenarios](../execution/recovery.md), and
-[Verification](../execution/verification.md). Those pages define future behavior;
+execution ownership. See [Execution coordination](../execution/coordination.md)
+and [Recovery scenarios](../execution/recovery.md). Those pages define future behavior;
 they do not change the implementation status above.
 
 ## Scheduler references

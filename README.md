@@ -77,7 +77,7 @@ flowchart TD
     - [Scheduler JSON](docs/configuration/format.md) — Schedules and validation.
     - [Configuration design](docs/configuration/loading.md) — Loading and design decisions.
     - [Concurrency](docs/configuration/concurrency.md) — Protection options.
-    - [Service wiring](docs/configuration/services.md) — Dependencies and implementation choices.
+    - [Service wiring](docs/development/service-wiring.md) — Dependencies and implementation choices.
 
 4. **Tasks**
 
@@ -86,7 +86,7 @@ flowchart TD
     - [Execution outcomes](docs/task-execution.md) — Handle task results and failures.
 
 5. **[Mutex layers](docs/execution/mutex-layers.md)** — Separate scheduler gates,
-   application coordination, and persistence. **[TODO: review and clarify]**
+   application coordination, and persistence.
 6. **Persistent coordination**
 
     - [Admission and completion](docs/execution/coordination.md)
@@ -101,4 +101,3 @@ flowchart TD
 8. **Verification**
 
     - [Concurrency demo](docs/development/concurrency-demo.md)
-    - [Recovery verification](docs/execution/verification.md)

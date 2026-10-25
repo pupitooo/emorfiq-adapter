@@ -51,15 +51,15 @@ The example credentials are intended for local development.
 
 Database files live in the Compose-managed `postgres_data` volume, mounted at
 `/var/lib/postgresql` for PostgreSQL 18. `make down` preserves this volume.
+To delete the database and application logs, use the
+[reset procedure](local-environment.md#reset-database-and-logs).
 
 The database starts without application tables. Apply the versioned schema
 explicitly with the [migration commands](migrations.md). Runtime connections use
 `DATABASE_DSN`, `DATABASE_USER`, and `DATABASE_PASSWORD`, supplied by Compose.
 `DATABASE_PASSWORD` defaults to `POSTGRES_PASSWORD` when it is not set explicitly.
 Connection registration and transaction ownership are described in
-[Service wiring](../configuration/services.md#database-boundary).
+[Service wiring](service-wiring.md#database-boundary).
 
 Run `make test-storage` for isolated PostgreSQL storage tests. See
 [Storage tests](../execution/storage.md#storage-tests) for coverage and isolation.
-
-For application SQL, see [Database queries](database-queries.md).

@@ -2,8 +2,9 @@
 
 An overlap lock protects a reservation for a fixed time. Expiring it or changing a row to
 `abandoned` cannot terminate that process, cancel an HTTP request, or undo its
-changes. This page defines task-level obligations outside the scheduler's
-reservation indexes. See [recovery](recovery.md) for the database lifecycle.
+changes. The scheduler coordinates reservations and run history. Business writes
+made by a task need protection at their destination, as described below.
+See [recovery](recovery.md) for the scheduler's database lifecycle.
 
 ## Network partition and a surviving worker
 
@@ -68,6 +69,12 @@ cannot acquire one merely because the scheduler sends a header.
 
 ## Fencing stale owners
 
+Here, the protected resource is the business data changed by a task, such as a
+product's stock quantity in a target database or API. It is separate from the
+scheduler's `task_runs` and `task_locks` records, even if both use the same database.
+For example, an older task run may publish an outdated stock quantity after a
+newer run has already updated that product.
+
 Fencing uses an increasing generation for the protected resource. The receiver
 atomically compares the generation and applies the write. After observing a new
 generation, it rejects older ones. Comparing in the worker before writing is
@@ -78,28 +85,40 @@ generation is not automatically rejected by this basic scheme.
 sequenceDiagram
     participant A as Old worker (generation 7)
     participant B as New worker (generation 8)
-    participant E as Fenced resource
+    participant E as Target database or API
     B->>E: Write with generation 8
     E->>E: Atomically accept and remember generation 8
     A->>E: Late write with generation 7
     E-->>A: Reject stale generation
 ```
 
+### Responsibility boundary
+
+If fencing is required, it needs cooperation across these components:
+
+| Component | Responsibility |
+| --- | --- |
+| Ownership authority | Coordinate ownership and allocate increasing generations for each business resource. This requires an explicit allocation protocol in the business integration or scheduler. |
+| Task integration / business service | Receive the assigned generation and include it with every protected write to that resource. |
+| Target database or API | Atomically compare the supplied generation with the latest accepted generation and apply the write only if it is not stale. |
+
+A check inside `Task::run()` cannot provide this guarantee by itself: the task
+may pause or lose ownership between checking and writing. Enforcement belongs
+at the destination of the business write, in the same atomic operation as that
+write. A local counter created independently by each task run is also insufficient.
+
+### Current support
+
 The UUID `owner_token` is an ownership credential, not an ordered fencing token.
 A `task_runs.id` must not be assumed to provide the required resource-level
-ordering without a separate design. The current schema and coordinator contract
-do not implement fencing. It requires receiver support and an explicit resource
+ordering without a separate design. The scheduler does not allocate resource-level
+ownership generations or pass them to tasks for use in external writes.
+The current `Task::run(): void` contract exposes no execution context carrying
+such a generation, and the application has no production receiver integration
+that enforces this protocol. This section describes a possible integration,
+rather than an existing scheduler guarantee or a mechanism a task can implement
+alone.
+
+`schema_migrations.version` tracks database schema changes; it does not identify
+ownership generations. Fencing requires receiver support and an explicit resource
 identity, generation allocation, and atomic enforcement protocol.
-
-## Scope of verification
-
-Acceptance tests use controllable worker pauses and an external-effects probe to
-show that an abandoned worker and an already submitted request can still act.
-They do not require automatic cancellation or renewal. Receiver examples test
-duplicate-key and stale-generation behavior through
-an explicit test port. They do not prove that a real payment API or other
-production receiver offers these guarantees. Each effectful task must verify
-its actual receiver integration before relying on it.
-
-See [verification and remaining work](verification.md) for the boundary between
-coordinator implementation and task-specific safety work.

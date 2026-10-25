@@ -5,6 +5,8 @@ docs_dir: ../../docs
 exclude_docs: |
   /CODING_STANDARDS.md
   /STRUCTURE_PROPOSAL.md
+not_in_nav: |
+  /execution/verification.md
 site_dir: /tmp/emorfiq-docs-site
 strict: true
 hooks:
@@ -16,7 +18,6 @@ theme:
   language: en
   font: false
   features:
-    - navigation.sections
     - navigation.top
     - content.code.copy
 plugins:
@@ -40,34 +41,33 @@ validation:
     unrecognized_links: warn
 nav:
   - Intro: index.md
-  - Application:
-      - Code overview: architecture.md
-      - Adapter:
-          - Overview: adapter/index.md
-          - LaravelAdapter: adapter/laravel.md
-      - Tasks:
-          - Services: task-services.md
-          - Resolution: task-resolution.md
-          - Execution: task-execution.md
-  - Execution:
-      - Mutex layers: execution/mutex-layers.md
-      - Coordination: execution/coordination.md
-      - History and locks: execution/history.md
-      - Storage: execution/storage.md
-      - Recovery: execution/recovery.md
-      - External effects: execution/external-effects.md
-      - Verification: execution/verification.md
+  - Code overview: architecture.md
+  - Adapter:
+      - Overview: adapter/index.md
+      - Laravel integration: adapter/laravel.md
   - Configuration:
-      - Services: configuration/services.md
-      - JSON format: configuration/format.md
+      - Scheduler JSON: configuration/format.md
+      - Configuration loading: configuration/loading.md
       - Cron syntax: configuration/cron.md
       - Concurrency: configuration/concurrency.md
-      - Design: configuration/loading.md
+  - Tasks:
+      - Registration: task-services.md
+      - Dependency resolution: task-resolution.md
+      - Execution outcomes: task-execution.md
+  - Mutex layers: execution/mutex-layers.md
+  - Coordination:
+      - Admission and completion: execution/coordination.md
+      - History and locks: execution/history.md
+      - Storage transactions: execution/storage.md
+  - Failure and recovery:
+      - Recovery: execution/recovery.md
+      - External effects: execution/external-effects.md
+  - Verification:
+      - Concurrency demo: development/concurrency-demo.md
   - Development:
       - Local environment: development/local-environment.md
-      - Concurrency demo: development/concurrency-demo.md
+      - Service wiring: development/service-wiring.md
       - Database: development/database.md
-      - Database queries: development/database-queries.md
       - Migrations: development/migrations.md
       - Adapter UI: development/adapter-ui.md
       - Documentation: development/documentation.md

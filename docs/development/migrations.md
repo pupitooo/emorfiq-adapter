@@ -9,62 +9,40 @@ make migrate
 make migration-status
 ```
 
-Migrations are explicit, including for existing volumes. Starting a container
-does not apply them. The `migrations/` directory is mounted read-only into
-PostgreSQL, so SQL changes do not require rebuilding PHP images.
+Migrations are explicit. Starting a container does not apply them. The
+`migrations/` directory is mounted read-only into PostgreSQL, so SQL changes do
+not require rebuilding PHP images.
 
 `migrations/migrate.sql` serializes runners with a transaction-scoped advisory
-lock, applies pending SQL files, and records
-versions in `schema_migrations` in the same transaction. An error rolls back both
-schema changes and version records. Repeated execution skips applied versions.
+lock and records version 1 in `schema_migrations` in the same transaction as the
+schema creation. An error rolls back both. Repeated execution skips the applied
+version.
 
-Add numbered SQL files and corresponding version checks to the runner. Keep
-released migrations unchanged. Rollback migrations are not supplied.
+## Single schema migration
 
-## Task run structure
+`001_task_runs.sql` is the only schema migration. During this development phase,
+edit this file for subsequent schema changes rather than adding migrations.
+The database will be recreated; there is no upgrade path from the previous
+schema. Editing an already applied migration does not update an existing database.
+Recreate the application schema and its migration record before applying it again.
+The application database has not been cleared as part of this source change.
 
-Migration `001_task_runs.sql` creates one row per claimed execution. Migration
-`002_task_run_completion.sql` separates recovery history from completion and
-allows an empty overlap deadline for runs without overlap protection. Together
-they store:
+The migration creates:
 
-- The schedule ID and planned UTC minute, separate from actual start time.
-- A snapshot of task class, cron expression, time zone, and concurrency options.
-- Status, owner token, fixed overlap expiration, actual start/finish times, and error message.
-- Recovery detection time (`abandoned_at`) and recovering process identity (`abandoned_by`).
+- `task_runs`: execution history and the original configuration snapshot.
+- `task_locks`: overlap locks and occurrence reservations, linked to history.
 
-The application is responsible for validating strings, expiration,
-timestamps, and lifecycle state. The intended statuses are `in_progress`,
-`succeeded`, `failed`, and `abandoned`. `abandoned` means ownership was lost or
-execution could not be confirmed, not that its effects were undone. A late
-original completion can change it to `succeeded` or `failed`, setting
-`finished_at` while preserving abandonment fields. Recovery itself leaves
-`finished_at` empty. The migrations define storage types, required columns,
-primary keys, and coordination indexes;
-it does not add validation `CHECK` constraints.
-
-| Option | Database rule |
-| --- | --- |
-| `onOneServer` | Unique `(schedule_id, scheduled_for)` among rows with the option enabled, including completed rows. |
-| `withoutOverlapping` | Unique `schedule_id` among protected `in_progress` rows. |
-| Both disabled | Multiple rows for the same schedule and minute are allowed. |
-
-The columns store the options of that execution. All instances must use the
-same schedule IDs and configuration. The minute is the intended occurrence
-instant, not a per-process timestamp. See [Concurrency](../configuration/concurrency.md)
-for skipping behavior and independent locks for different schedule IDs.
-
-Migration 002 copies legacy abandoned rows' `finished_at` into `abandoned_at`
-and clears `finished_at`. Their original recovering process was not recorded,
-so `abandoned_by = 'legacy:unknown'` explicitly records that limitation.
-Confirmed completion timestamps are unchanged. Deadlines on rows without
-`without_overlapping` become null; occurrence reservations remain intact.
+See [Run history and locks](../execution/history.md) for the relationship,
+indexes, and retention behavior. History lifecycle states are `in_progress`,
+`succeeded`, `failed`, and `abandoned`. Recovery records `abandoned_at` and
+`abandoned_by` without setting `finished_at`; late completion retains that
+attribution. The lock table constrains lock types and their required keys and
+deadlines. Application configuration and lifecycle validation remain in PHP.
 
 ## Runtime boundary
 
-The migrations define the schema; [PostgreSQL storage](../execution/storage.md)
-implements reservation, ownership, completion, and recovery. Their rules are described in [Execution coordination](../execution/coordination.md).
-See [Recovery scenarios](../execution/recovery.md) for expired overlap locks and crash
-windows, and [External effects](../execution/external-effects.md) for the limits
-of cancellation, idempotence, and fencing. The [verification plan](../execution/verification.md)
-separates schema checks, storage tests, and worker recovery acceptance tests.
+The migration defines the schema; [PostgreSQL storage](../execution/storage.md)
+implements atomic acquisition, completion, and recovery. See
+[Coordination](../execution/coordination.md) for their contract and
+[Recovery](../execution/recovery.md) for crash windows. Test adaptation to the
+split schema is deferred.

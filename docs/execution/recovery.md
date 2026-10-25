@@ -1,14 +1,16 @@
 # Recovery scenarios
 
 Recovery frees an expired overlap reservation so a later occurrence can run.
-It does not retry abandoned work or reverse its effects. The [PostgreSQL storage](storage.md) implements these transitions; see [coordination](coordination.md) for the contract
-and [verification](verification.md) for implementation status.
+It does not retry abandoned work or reverse its effects. The
+[PostgreSQL storage](storage.md) implements these transitions; see
+[coordination](coordination.md) for the contract.
 
 ## Recovery before reservation
 
 A killed process or failed machine cannot reliably run cleanup. At the next
-claim for that schedule, recover expired protected `in_progress` rows before
-attempting the new reservation, using short transactional database operations.
+claim for that schedule, remove expired overlap locks from `task_locks` and
+mark linked `in_progress` history rows abandoned before attempting the new
+reservation, using short transactional database operations.
 
 ```mermaid
 sequenceDiagram
@@ -35,7 +37,8 @@ extension, not a correctness requirement for the next claim.
 
 With `onOneServer`, the abandoned occurrence remains reserved. A new 10:06
 occurrence may run, but 10:00 cannot be reclaimed. Automatic retry, catch-up, and
-retention that deletes deduplication history are separate features.
+retention that deletes occurrence locks are separate features. Deleting history
+does not release these locks; see [History and locks](history.md).
 
 ## Long tasks without renewal
 
@@ -74,7 +77,7 @@ Both controlled orders are valid:
 
 | First committed transition | Required final state |
 | --- | --- |
-| Completion | Recovery sees a completed row and does nothing; abandonment fields remain empty. |
+| Completion | Recovery finds no overlap lock and does nothing; abandonment fields remain empty. |
 | Recovery | Original completion records success or failure and preserves recovery time and actor. |
 
 A confirmed `succeeded` or `failed` result cannot subsequently be overwritten.
