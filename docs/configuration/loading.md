@@ -1,4 +1,4 @@
-# Configuration loading
+# Configuration design
 
 Configuration is loaded and validated before the adapter builds its execution
 plan. The JSON provider converts the file into typed, immutable application
