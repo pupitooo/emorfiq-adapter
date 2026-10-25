@@ -22,6 +22,25 @@ Run `make down` to stop the application while keeping its logs and database data
 The environment is intended for local development. The web service uses PHP's
 development server and is exposed only on `127.0.0.1`.
 
+## Reset database and logs
+
+Run `make clean` to stop and remove the Compose containers, including the
+documentation preview, and delete the `postgres_data` and `runtime` volumes.
+This permanently removes the local database, migration records, and application
+logs. Docker images are kept.
+
+To start again with an empty database and the current schema, run:
+
+```sh
+make clean
+docker compose up -d --wait postgres
+make migrate
+make up
+```
+
+Apply migrations before starting the scheduler so its first execution uses the
+current schema. New task history and logs accumulate once the scheduler starts.
+
 ## Services and logs
 
 | Service | Purpose |
@@ -47,6 +66,7 @@ See [Database](database.md) for Adminer login details, SQL access, and storage.
 | --- | --- |
 | `make up` | Build and start the application, PostgreSQL, and Adminer. |
 | `make down` | Stop services while retaining logs and database data. |
+| `make clean` | Stop and remove services and delete the local database and logs. |
 | `make logs` | Follow scheduler output and adapter errors. |
 | `make psql` | Open an interactive PostgreSQL session. |
 | `make test` | Run the implemented application suite in a separate Docker container. |

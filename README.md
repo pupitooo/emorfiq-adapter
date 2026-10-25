@@ -8,17 +8,24 @@ Source code: **[GitHub repository](https://github.com/pupitooo/emorfiq-adapter)*
 
 ## Run locally
 
-Requires Docker with Compose v2+ and Make. PHP 8.5 and Composer run inside Docker.
-From the application directory (`src/` in the development workspace), run:
+Requirements:
+
+- Docker with Compose v2+
+- Make
+
+PHP 8.5, PostgreSQL and Composer run inside Docker.
 
 ```sh
 make up
+make migrate
 ```
 
-Open the adapter UI at **[http://localhost:8088](http://localhost:8088)**.
-Run `make down` to stop the application. After changing source files, run
-`make up` again to rebuild it. See [Local environment](docs/development/local-environment.md)
-for ports, logs, and checks.
+- Adapter UI: **[http://localhost:8088](http://localhost:8088)**.
+- Stop: `make down`. Rebuild after source changes: `make up`.
+- [Database migrations](docs/development/migrations.md)
+- [Reset the database](docs/development/local-environment.md#reset-database-and-logs)
+- Ports, logs, and checks: [Local environment](docs/development/local-environment.md).
+- Sample simulations, worker crash, and late completion: [Concurrency demo](docs/development/concurrency-demo.md).
 
 ## Documentation
 
@@ -59,8 +66,10 @@ orange the external trigger, and blue the adapter as a whole.*
 
 The developer or operator supplies schedules and registers application tasks and
 their dependencies. The periodic trigger starts the adapter, which loads the
-configuration, selects due work through a replaceable scheduler integration, and
-resolves tasks through application-owned contracts before calling `Task::run()`.
+configuration and selects due work through a replaceable scheduler integration.
+Before resolving each admitted task, it confirms run history and any requested
+concurrency locks in PostgreSQL, then resolves the task through application-owned
+contracts and calls `Task::run()`.
 Configuration loading, scheduler integration, dependency injection, and task
 execution all belong inside the blue system boundary.
 
@@ -69,3 +78,5 @@ contracts, dependency boundaries, and current implementation limits.
 Use [Task services](docs/task-services.md) to add tasks and their dependencies,
 [Task execution](docs/task-execution.md) for lifecycle logs and failure handling,
 and [Scheduler JSON](docs/configuration/format.md) to configure schedules.
+See [History and locks](docs/execution/history.md) for persistent execution records
+and concurrency coordination.
