@@ -8,7 +8,8 @@ use InvalidArgumentException;
 use SensitiveParameter;
 
 /**
- * Identifies a committed reservation and its owner. Never log the owner token.
+ * Identifies a committed history row and its owner, with or without concurrency locks.
+ * Never log the owner token.
  * Completion addresses this run, not every run belonging to its schedule.
  */
 final readonly class RunClaim

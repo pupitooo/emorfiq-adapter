@@ -46,18 +46,19 @@ final readonly class PostgresTaskRunStorage implements TaskRunStorage
     public function hasLiveOverlap(string $scheduleId): bool
     {
         return $this->transaction->run(fn(): bool => $this->connection->fetchSingle(<<<'SQL'
-            SELECT 1 FROM task_runs
-            WHERE schedule_id = %s AND without_overlapping AND status = %s
-              AND lease_expires_at > clock_timestamp()
+            SELECT 1 FROM task_locks
+            WHERE schedule_id = %s AND lock_type = 'overlap'
+              AND expires_at > clock_timestamp()
             SQL
-            , $scheduleId, RunStatus::InProgress->value) !== null);
+            , $scheduleId) !== null);
     }
 
     #[Override]
     public function hasOccurrence(string $scheduleId, DateTimeImmutable $scheduledFor): bool
     {
         return $this->transaction->run(fn(): bool => $this->connection->fetchSingle(<<<'SQL'
-            SELECT 1 FROM task_runs WHERE schedule_id = %s AND scheduled_for = %s AND on_one_server
+            SELECT 1 FROM task_locks
+            WHERE schedule_id = %s AND scheduled_for = %s AND lock_type = 'occurrence'
             SQL
             , $scheduleId, $scheduledFor->format('Y-m-d H:i:s.uP')) !== null);
     }
@@ -79,22 +80,50 @@ final readonly class PostgresTaskRunStorage implements TaskRunStorage
     public function complete(RunClaim $claim, RunOutcome $outcome, ?string $error): bool
     {
         return $this->transaction->run(function () use ($claim, $outcome, $error): bool {
-            // Acquire the lock before reading the completion clock, including across expiry.
-            $this->connection->query('SELECT id FROM task_runs WHERE id = %i FOR UPDATE', $claim->id);
-            $this->connection->query(
-                'UPDATE task_runs SET %a WHERE id = %i AND owner_token = %s AND status IN %in',
-                [
-                    'status' => $outcome->value,
-                    'finished_at' => Connection::expression('clock_timestamp()'),
-                    'error_message' => $error,
-                ],
-                $claim->id,
-                $claim->ownerToken,
-                [RunStatus::InProgress->value, RunStatus::Abandoned->value]
-            );
+            $this->lockCompletionRows($claim);
+            if (! $this->recordCompletion($claim, $outcome, $error)) {
+                return false;
+            }
+            $this->connection->query(<<<'SQL'
+                DELETE FROM task_locks WHERE run_id = %i AND owner_token = %s AND lock_type = 'overlap'
+                SQL
+                , $claim->id, $claim->ownerToken);
 
-            return $this->connection->getAffectedRows() === 1;
+            return true;
         });
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function recordCompletion(RunClaim $claim, RunOutcome $outcome, ?string $error): bool
+    {
+        $this->connection->query(
+            'UPDATE task_runs SET %a WHERE id = %i AND owner_token = %s AND status IN %in',
+            [
+                'status' => $outcome->value,
+                'finished_at' => Connection::expression('clock_timestamp()'),
+                'error_message' => $error,
+            ],
+            $claim->id,
+            $claim->ownerToken,
+            [RunStatus::InProgress->value, RunStatus::Abandoned->value]
+        );
+        return $this->connection->getAffectedRows() === 1;
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function lockCompletionRows(RunClaim $claim): void
+    {
+        // Match recovery's lock order before reading the completion clock, including across expiry.
+        $this->connection->query(<<<'SQL'
+            SELECT lock_type FROM task_locks
+            WHERE run_id = %i AND owner_token = %s ORDER BY lock_type FOR UPDATE
+            SQL
+            , $claim->id, $claim->ownerToken);
+        $this->connection->query('SELECT id FROM task_runs WHERE id = %i FOR UPDATE', $claim->id);
     }
 
     #[Override]
@@ -108,23 +137,40 @@ final readonly class PostgresTaskRunStorage implements TaskRunStorage
      */
     private function abandonExpiredWithinTransaction(string $scheduleId, string $recoveredBy): int
     {
+        $this->lockOverlap($scheduleId);
+        $count = $this->connection->fetchSingle(<<<'SQL'
+            WITH expired AS (DELETE FROM task_locks
+                WHERE schedule_id = %s AND lock_type = 'overlap' AND expires_at <= clock_timestamp()
+                RETURNING run_id
+            ), abandoned AS (
+                UPDATE task_runs
+                SET status = %s, abandoned_at = COALESCE(abandoned_at, clock_timestamp()),
+                    abandoned_by = COALESCE(abandoned_by, %s)
+                FROM expired
+                WHERE task_runs.id = expired.run_id AND task_runs.status = %s
+                RETURNING task_runs.id
+            )
+            SELECT count(*) FROM expired
+            SQL
+            , $scheduleId, RunStatus::Abandoned->value, $recoveredBy, RunStatus::InProgress->value);
+        if (! is_int($count)) {
+            throw new \LogicException('Invalid PostgreSQL recovery result.');
+        }
+
+        return $count;
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function lockOverlap(string $scheduleId): void
+    {
         // Lock even currently live candidates: expiry can pass while waiting for their row locks.
         $this->connection->query(<<<'SQL'
-            SELECT id FROM task_runs
-            WHERE schedule_id = %s AND without_overlapping AND status = %s
-            ORDER BY id FOR UPDATE
+            SELECT run_id FROM task_locks
+            WHERE schedule_id = %s AND lock_type = 'overlap' FOR UPDATE
             SQL
-            , $scheduleId, RunStatus::InProgress->value);
-        $this->connection->query(<<<'SQL'
-            UPDATE task_runs
-            SET status = %s, abandoned_at = COALESCE(abandoned_at, clock_timestamp()),
-                abandoned_by = COALESCE(abandoned_by, %s)
-            WHERE schedule_id = %s AND without_overlapping AND status = %s
-              AND lease_expires_at <= clock_timestamp()
-            SQL
-            , RunStatus::Abandoned->value, $recoveredBy, $scheduleId, RunStatus::InProgress->value);
-
-        return $this->connection->getAffectedRows();
+            , $scheduleId);
     }
 
     /**
@@ -134,17 +180,62 @@ final readonly class PostgresTaskRunStorage implements TaskRunStorage
     {
         $row = $this->connection->fetch(<<<'SQL'
             WITH instant AS MATERIALIZED (SELECT clock_timestamp() AS now)
-            INSERT INTO task_runs %v ON CONFLICT DO NOTHING RETURNING id, owner_token
+            INSERT INTO task_runs %v RETURNING id, owner_token
             SQL
             , $this->reservationValues($definition, $scheduledFor));
-        if ($row === null) {
-            return null;
-        }
-        if (! is_int($row['id']) || ! is_string($row['owner_token'])) {
+        if ($row === null || ! is_int($row['id']) || ! is_string($row['owner_token'])) {
             throw new \LogicException('Invalid PostgreSQL reservation result.');
         }
 
-        return new RunClaim(id: $row['id'], ownerToken: $row['owner_token']);
+        $claim = new RunClaim(id: $row['id'], ownerToken: $row['owner_token']);
+        if (! $this->acquireLocks($definition, $claim)) {
+            // Keep recovery, but discard this denied attempt and any partially acquired locks.
+            $this->connection->query('DELETE FROM task_locks WHERE run_id = %i', $claim->id);
+            $this->connection->query('DELETE FROM task_runs WHERE id = %i', $claim->id);
+
+            return null;
+        }
+
+        return $claim;
+    }
+
+    /**
+     * Acquires only requested protections; history rows themselves never enforce concurrency.
+     *
+     * @throws Exception
+     */
+    private function acquireLocks(ScheduleDefinition $definition, RunClaim $claim): bool
+    {
+        $protections = [
+            'occurrence' => $definition->onOneServer,
+            'overlap' => $definition->withoutOverlapping,
+        ];
+        foreach ($protections as $type => $enabled) {
+            if (! $enabled) {
+                continue;
+            }
+            if (! $this->insertLock($claim, $type)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function insertLock(RunClaim $claim, string $type): bool
+    {
+        $this->connection->query(<<<'SQL'
+            INSERT INTO task_locks (schedule_id, lock_type, scheduled_for, owner_token, run_id, expires_at)
+            SELECT schedule_id, %s, CASE WHEN %s = 'occurrence' THEN scheduled_for END,
+                owner_token, id, CASE WHEN %s = 'overlap' THEN lease_expires_at END
+            FROM task_runs WHERE id = %i
+            ON CONFLICT DO NOTHING
+            SQL
+            , $type, $type, $type, $claim->id);
+        return $this->connection->getAffectedRows() === 1;
     }
 
     /**

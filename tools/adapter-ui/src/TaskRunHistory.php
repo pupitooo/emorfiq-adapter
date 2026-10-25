@@ -26,7 +26,13 @@ final readonly class TaskRunHistory
         to_char(lease_expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS lease_expires_at,
         to_char(finished_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS finished_at,
         to_char(abandoned_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS abandoned_at,
-        error_message, abandoned_by
+        error_message, abandoned_by,
+        EXISTS (SELECT 1 FROM task_locks WHERE run_id = task_runs.id
+            AND lock_type = 'overlap' AND expires_at > CURRENT_TIMESTAMP) AS overlap_locked,
+        EXISTS (SELECT 1 FROM task_locks WHERE run_id = task_runs.id
+            AND lock_type = 'overlap' AND expires_at <= CURRENT_TIMESTAMP) AS overlap_expired,
+        EXISTS (SELECT 1 FROM task_locks WHERE run_id = task_runs.id
+            AND lock_type = 'occurrence') AS occurrence_reserved
         SQL;
 
     public function __construct(
@@ -75,7 +81,7 @@ final readonly class TaskRunHistory
         $pages = max(1, (int) ceil($total / $size));
         $page = min($page, $pages);
         $rows = $this->rows($connection->query(
-            'SELECT ' . self::COLUMNS . ' FROM task_runs WHERE %and ORDER BY id DESC %lmt %ofs',
+            'SELECT ' . self::COLUMNS . ' FROM task_runs WHERE %and ORDER BY task_runs.id DESC %lmt %ofs',
             $conditions,
             $size,
             ($page - 1) * $size

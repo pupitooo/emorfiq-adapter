@@ -1,4 +1,4 @@
-.PHONY: up down logs psql migrate migration-status test test-db test-storage test-recovery check docs docs-stop docs-check docs-export
+.PHONY: up down clean logs psql migrate migration-status test test-db test-storage test-recovery check docs docs-stop docs-check docs-export
 
 up:
 	@docker compose up -d --build --wait
@@ -7,6 +7,9 @@ up:
 
 down:
 	@docker compose down
+
+clean:
+	@docker compose down --volumes
 
 logs:
 	@docker compose logs --tail=50 -f scheduler
@@ -30,8 +33,7 @@ test-db:
 	  sql_input=$$(mktemp); \
 	  trap 'rm -f "$$sql_input"' EXIT; \
 	  trap 'exit 1' HUP INT TERM; \
-	  cat tests/Database/setup.sql migrations/001_task_runs.sql tests/Database/legacy-task-runs.sql \
-	    migrations/002_task_run_completion.sql tests/Database/task-runs.sql > "$$sql_input"; \
+	  cat tests/Database/setup.sql migrations/001_task_runs.sql tests/Database/task-runs.sql > "$$sql_input"; \
 	  docker compose exec -T postgres sh -c 'exec psql -X --set=ON_ERROR_STOP=on --username="$${POSTGRES_USER}" --dbname="$${POSTGRES_DB}"' < "$$sql_input"
 
 test-storage:

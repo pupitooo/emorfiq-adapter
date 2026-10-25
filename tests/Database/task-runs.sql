@@ -1,31 +1,31 @@
-CREATE FUNCTION insert_run(
-    schedule text,
-    minute integer,
-    one_server boolean,
-    overlap boolean,
-    state text DEFAULT 'in_progress',
-    expired boolean DEFAULT false
-) RETURNS bigint LANGUAGE sql AS $$
+-- History deliberately has no concurrency predicates. Locks enforce protection independently.
+CREATE FUNCTION insert_run(schedule text, minute integer DEFAULT 0) RETURNS bigint LANGUAGE sql AS $$
     INSERT INTO task_runs (
         schedule_id, scheduled_for, task_class, cron_expression, schedule_timezone,
         without_overlapping, overlap_expires_after_minutes, on_one_server,
-        status, owner_token, started_at, lease_expires_at
+        status, owner_token, started_at
     ) VALUES (
         schedule, '2026-10-26 10:00:00+00'::timestamptz + minute * interval '1 minute',
-        'RecordingTask', '* * * * *', 'UTC', overlap, 5, one_server,
-        state, gen_random_uuid(), clock_timestamp(),
-        CASE WHEN overlap THEN clock_timestamp() +
-            CASE WHEN expired THEN interval '-1 minute' ELSE interval '5 minutes' END END
+        'RecordingTask', '* * * * *', 'UTC', false, 5, false,
+        'in_progress', gen_random_uuid(), clock_timestamp()
     ) RETURNING id;
 $$;
 
-CREATE FUNCTION expect_conflict(schedule text, minute integer, one_server boolean, overlap boolean,
-    expected_index text) RETURNS void LANGUAGE plpgsql AS $$
+CREATE FUNCTION insert_lock(run bigint, kind text, deadline timestamptz DEFAULT NULL)
+RETURNS void LANGUAGE sql AS $$
+    INSERT INTO task_locks (schedule_id, lock_type, scheduled_for, owner_token, run_id, expires_at)
+    SELECT schedule_id, kind, CASE WHEN kind = 'occurrence' THEN scheduled_for END,
+        owner_token, id, CASE WHEN kind = 'overlap' THEN COALESCE(deadline, clock_timestamp() + interval '5 minutes') END
+    FROM task_runs WHERE id = run;
+$$;
+
+CREATE FUNCTION expect_conflict(run bigint, kind text, expected_index text)
+RETURNS void LANGUAGE plpgsql AS $$
 DECLARE
     actual_index text;
 BEGIN
     BEGIN
-        PERFORM insert_run(schedule, minute, one_server, overlap);
+        PERFORM insert_lock(run, kind);
     EXCEPTION WHEN unique_violation THEN
         GET STACKED DIAGNOSTICS actual_index = CONSTRAINT_NAME;
         IF actual_index <> expected_index THEN
@@ -38,198 +38,154 @@ END;
 $$;
 
 DO $$
+DECLARE
+    first_run bigint;
+    second_run bigint;
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM task_runs WHERE schedule_id = 'legacy-abandoned'
-          AND abandoned_at = '2026-10-26 10:06:00+00' AND abandoned_by = 'legacy:unknown'
-          AND finished_at IS NULL AND lease_expires_at = '2026-10-26 10:05:00+00'
-    ) THEN
-        RAISE EXCEPTION 'Migration must preserve legacy recovery time separately from completion';
+    first_run := insert_run('history');
+    second_run := insert_run('history');
+    IF first_run = second_run OR (SELECT count(DISTINCT owner_token) FROM task_runs) <> 2
+        OR EXISTS (SELECT 1 FROM task_locks) THEN
+        RAISE EXCEPTION 'Duplicate unprotected executions require distinct history and no locks';
     END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM task_runs WHERE schedule_id = 'legacy-success'
-          AND finished_at = '2026-10-26 10:01:00+00' AND abandoned_at IS NULL AND abandoned_by IS NULL
-    ) THEN
-        RAISE EXCEPTION 'Migration must preserve confirmed legacy completion';
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM task_runs WHERE schedule_id = 'legacy-single-only' AND lease_expires_at IS NULL
-    ) THEN
-        RAISE EXCEPTION 'Occurrence-only reservations must not acquire an execution expiry';
-    END IF;
-    RAISE NOTICE 'PASS upgrade preserves legacy completion and recovery history and clears irrelevant expiry';
-END;
-$$;
-
-DO $$
-BEGIN
-    PERFORM insert_run('completed', 0, true, true, 'succeeded');
-    PERFORM expect_conflict('completed', 0, true, true, 'task_runs_occurrence');
-    PERFORM insert_run('completed', 1, true, true);
-    RAISE NOTICE 'PASS completed occurrence stays reserved, next minute is allowed';
-END;
-$$;
-
-DO $$
-BEGIN
-    PERFORM insert_run('failed', 0, true, true, 'failed');
-    PERFORM expect_conflict('failed', 0, true, true, 'task_runs_occurrence');
-    PERFORM insert_run('failed', 1, true, true);
-    RAISE NOTICE 'PASS failed occurrence stays reserved and releases active schedule';
-END;
-$$;
-
-DO $$
-BEGIN
-    PERFORM insert_run('active', 0, true, true);
-    PERFORM expect_conflict('active', 1, true, true, 'task_runs_active_schedule');
-    RAISE NOTICE 'PASS different minutes cannot overlap protected active run';
-END;
-$$;
-
-DO $$
-BEGIN
-    PERFORM insert_run('expired', 0, true, true, 'in_progress', true);
-    PERFORM expect_conflict('expired', 1, true, true, 'task_runs_active_schedule');
-    RAISE NOTICE 'PASS elapsed lease alone does not release active index';
+    PERFORM insert_lock(first_run, 'overlap');
+    PERFORM insert_run('history');
+    RAISE NOTICE 'PASS history neither acquires nor enforces concurrency locks';
 END;
 $$;
 
 DO $$
 DECLARE
-    changed integer;
+    original bigint;
 BEGIN
-    UPDATE task_runs
-    SET status = 'abandoned', abandoned_at = clock_timestamp(), abandoned_by = 'schema-test:recovery'
-    WHERE schedule_id = 'expired' AND status = 'in_progress' AND lease_expires_at <= clock_timestamp();
-    GET DIAGNOSTICS changed = ROW_COUNT;
-    IF changed <> 1 THEN
-        RAISE EXCEPTION 'Expected one expired transition, got %', changed;
-    END IF;
-    IF NOT EXISTS (
-        SELECT 1 FROM task_runs WHERE schedule_id = 'expired' AND finished_at IS NULL
-          AND abandoned_at IS NOT NULL AND abandoned_by = 'schema-test:recovery'
-    ) THEN
-        RAISE EXCEPTION 'Recovery must record its actor and time without asserting completion';
-    END IF;
-    PERFORM insert_run('expired', 1, true, true);
-    PERFORM expect_conflict('expired', 0, true, false, 'task_runs_occurrence');
-    RAISE NOTICE 'PASS explicit abandonment frees later occurrence, preserves old reservation';
-END;
-$$;
-
-DO $$
-BEGIN
-    PERFORM insert_run('single-only', 0, true, false);
-    PERFORM insert_run('single-only', 1, true, false);
-    PERFORM expect_conflict('single-only', 0, true, false, 'task_runs_occurrence');
-    IF EXISTS (SELECT 1 FROM task_runs WHERE schedule_id = 'single-only' AND lease_expires_at IS NOT NULL) THEN
-        RAISE EXCEPTION 'Single-server scheduling must not introduce an overlap deadline';
-    END IF;
-    RAISE NOTICE 'PASS single-server protection permits overlapping different occurrences';
-END;
-$$;
-
-DO $$
-BEGIN
-    PERFORM insert_run('overlap-only', 0, false, true);
-    PERFORM expect_conflict('overlap-only', 0, false, true, 'task_runs_active_schedule');
-    UPDATE task_runs SET status = 'succeeded' WHERE schedule_id = 'overlap-only';
-    PERFORM insert_run('overlap-only', 0, false, true);
-    RAISE NOTICE 'PASS overlap-only protection permits same occurrence after completion';
-END;
-$$;
-
-DO $$
-BEGIN
-    PERFORM insert_run('unprotected', 0, false, false);
-    PERFORM insert_run('unprotected', 0, false, false);
-    RAISE NOTICE 'PASS both protections disabled permits duplicate active occurrences';
-END;
-$$;
-
-DO $$
-BEGIN
-    PERFORM insert_run('independent-first', 0, true, true);
-    PERFORM insert_run('independent-second', 0, true, true);
-    RAISE NOTICE 'PASS same task class under different schedule IDs remains independent';
-END;
-$$;
-
-DO $$
-BEGIN
-    PERFORM insert_run('mixed-options', 0, true, true);
-    PERFORM insert_run('mixed-options', 0, false, false);
-    RAISE NOTICE 'PASS index predicates exclude unprotected rows; consistent configuration is required';
+    original := insert_run('overlap');
+    PERFORM insert_lock(original, 'overlap');
+    PERFORM expect_conflict(insert_run('overlap', 1), 'overlap', 'task_locks_overlap');
+    PERFORM insert_lock(insert_run('other-schedule'), 'overlap');
+    RAISE NOTICE 'PASS overlap index blocks other minutes only within same schedule';
 END;
 $$;
 
 DO $$
 DECLARE
-    changed integer;
+    original bigint;
 BEGIN
-    UPDATE task_runs SET status = 'abandoned'
-    WHERE schedule_id = 'expired' AND status = 'in_progress' AND lease_expires_at <= clock_timestamp();
-    GET DIAGNOSTICS changed = ROW_COUNT;
-    IF changed <> 0 THEN
-        RAISE EXCEPTION 'Recovery must ignore terminal and live rows';
-    END IF;
-    IF (SELECT count(*) FROM task_runs WHERE schedule_id = 'expired') <> 2 THEN
-        RAISE EXCEPTION 'Recovery must retain history';
-    END IF;
-    RAISE NOTICE 'PASS repeated recovery ignores terminal/live rows and retains history';
+    original := insert_run('occurrence');
+    PERFORM insert_lock(original, 'occurrence');
+    PERFORM expect_conflict(insert_run('occurrence'), 'occurrence', 'task_locks_occurrence');
+    PERFORM insert_lock(insert_run('occurrence', 1), 'occurrence');
+    UPDATE task_runs SET status = 'succeeded' WHERE id = original;
+    PERFORM expect_conflict(insert_run('occurrence'), 'occurrence', 'task_locks_occurrence');
+    RAISE NOTICE 'PASS occurrence index permits other minutes and survives completion';
 END;
 $$;
 
 DO $$
 DECLARE
-    recovered_at timestamptz;
-    replacement_id bigint;
+    original bigint;
 BEGIN
-    SELECT abandoned_at INTO STRICT recovered_at FROM task_runs
-    WHERE schedule_id = 'expired' AND status = 'abandoned';
-    SELECT id INTO STRICT replacement_id FROM task_runs
-    WHERE schedule_id = 'expired' AND status = 'in_progress';
-    UPDATE task_runs SET status = 'succeeded', finished_at = clock_timestamp()
-    WHERE schedule_id = 'expired' AND status = 'abandoned';
-    IF NOT EXISTS (
-        SELECT 1 FROM task_runs WHERE schedule_id = 'expired' AND status = 'succeeded'
-          AND finished_at IS NOT NULL AND abandoned_at = recovered_at AND abandoned_by = 'schema-test:recovery'
-    ) THEN
-        RAISE EXCEPTION 'Late success must retain abandonment attribution';
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM task_runs WHERE id = replacement_id AND status = 'in_progress') THEN
-        RAISE EXCEPTION 'Late completion must leave replacement active';
-    END IF;
-    PERFORM expect_conflict('expired', 2, true, true, 'task_runs_active_schedule');
-    PERFORM expect_conflict('expired', 0, true, false, 'task_runs_occurrence');
-    RAISE NOTICE 'PASS late success retains recovery history and both replacement and occurrence protection';
+    original := insert_run('expired');
+    PERFORM insert_lock(original, 'overlap', clock_timestamp() - interval '1 minute');
+    PERFORM insert_lock(original, 'occurrence');
+    UPDATE task_runs SET status = 'abandoned' WHERE id = original;
+    PERFORM expect_conflict(insert_run('expired', 1), 'overlap', 'task_locks_overlap');
+    DELETE FROM task_locks WHERE run_id = original AND lock_type = 'overlap';
+    PERFORM insert_lock(insert_run('expired', 1), 'overlap');
+    PERFORM expect_conflict(insert_run('expired'), 'occurrence', 'task_locks_occurrence');
+    RAISE NOTICE 'PASS expiry and history status do not release locks; explicit removal frees overlap only';
 END;
 $$;
 
 DO $$
 DECLARE
-    original_id bigint;
+    original bigint;
+    original_owner uuid;
 BEGIN
-    original_id := insert_run('late-failure', 0, true, true, 'in_progress', true);
-    UPDATE task_runs
-    SET status = 'abandoned', abandoned_at = clock_timestamp(), abandoned_by = 'schema-test:recovery'
-    WHERE id = original_id;
-    PERFORM insert_run('late-failure', 1, true, true);
-    UPDATE task_runs SET status = 'failed', finished_at = clock_timestamp(), error_message = 'Task exception'
-    WHERE id = original_id;
-    IF NOT EXISTS (
-        SELECT 1 FROM task_runs WHERE id = original_id AND status = 'failed'
-          AND finished_at IS NOT NULL AND abandoned_at IS NOT NULL
-          AND abandoned_by = 'schema-test:recovery' AND error_message = 'Task exception'
-    ) THEN
-        RAISE EXCEPTION 'Late failure must retain its diagnostic and recovery history';
+    original := insert_run('deleted-history');
+    SELECT owner_token INTO STRICT original_owner FROM task_runs WHERE id = original;
+    PERFORM insert_lock(original, 'overlap');
+    PERFORM insert_lock(original, 'occurrence');
+    DELETE FROM task_runs WHERE id = original;
+    IF (SELECT count(*) FROM task_locks WHERE owner_token = original_owner AND run_id IS NULL) <> 2 THEN
+        RAISE EXCEPTION 'Deleting history must detach both locks and preserve their owner';
     END IF;
-    PERFORM expect_conflict('late-failure', 2, true, true, 'task_runs_active_schedule');
-    PERFORM expect_conflict('late-failure', 0, true, false, 'task_runs_occurrence');
-    RAISE NOTICE 'PASS late failure retains diagnostic and recovery history without unlocking replacement';
+    PERFORM expect_conflict(insert_run('deleted-history', 1), 'overlap', 'task_locks_overlap');
+    PERFORM expect_conflict(insert_run('deleted-history'), 'occurrence', 'task_locks_occurrence');
+    RAISE NOTICE 'PASS foreign key detaches deleted history without releasing either protection';
+END;
+$$;
+
+DO $$
+DECLARE
+    original bigint;
+BEGIN
+    original := insert_run('owner');
+    PERFORM insert_lock(original, 'overlap');
+    PERFORM insert_lock(original, 'occurrence');
+    PERFORM expect_conflict(original, 'overlap', 'task_locks_pkey');
+    IF (SELECT count(*) FROM task_locks WHERE run_id = original) <> 2 THEN
+        RAISE EXCEPTION 'One owner must be able to hold exactly one lock of each type';
+    END IF;
+    RAISE NOTICE 'PASS owner/type primary key permits both protection kinds';
+END;
+$$;
+
+DO $$
+DECLARE
+    kind text;
+    occurrence timestamptz;
+    deadline timestamptz;
+BEGIN
+    FOR kind, occurrence, deadline IN VALUES
+        ('unknown', NULL::timestamptz, NULL::timestamptz),
+        ('overlap', NULL::timestamptz, NULL::timestamptz),
+        ('overlap', now(), now()),
+        ('occurrence', NULL::timestamptz, NULL::timestamptz),
+        ('occurrence', now(), now())
+    LOOP
+        BEGIN
+            INSERT INTO task_locks (schedule_id, lock_type, owner_token, scheduled_for, expires_at)
+            VALUES ('invalid', kind, gen_random_uuid(), occurrence, deadline);
+        EXCEPTION WHEN check_violation THEN
+            CONTINUE;
+        END;
+        RAISE EXCEPTION 'Invalid lock shape accepted: %, %, %', kind, occurrence, deadline;
+    END LOOP;
+    RAISE NOTICE 'PASS lock constraints reject unknown types and invalid occurrence/deadline combinations';
+END;
+$$;
+
+DO $$
+BEGIN
+    BEGIN
+        INSERT INTO task_locks (schedule_id, lock_type, owner_token, run_id, expires_at)
+        VALUES ('missing', 'overlap', gen_random_uuid(), 9223372036854775807, now());
+    EXCEPTION WHEN foreign_key_violation THEN
+        RAISE NOTICE 'PASS linked locks require existing history';
+        RETURN;
+    END;
+    RAISE EXCEPTION 'Nonexistent run reference accepted';
+END;
+$$;
+
+DO $$
+DECLARE
+    original bigint;
+    owner uuid;
+    duplicate bigint;
+BEGIN
+    original := insert_run('unique-owner');
+    SELECT owner_token INTO STRICT owner FROM task_runs WHERE id = original;
+    duplicate := insert_run('duplicate-owner');
+    BEGIN
+        UPDATE task_runs SET owner_token = owner WHERE id = duplicate;
+    EXCEPTION WHEN unique_violation THEN
+        RAISE NOTICE 'PASS history owner tokens remain unique';
+        RETURN;
+    END;
+    RAISE EXCEPTION 'Duplicate owner token accepted';
 END;
 $$;
 
 ROLLBACK;
-\echo 'PASS all task_runs schema scenarios; test schema rolled back'
+\echo 'PASS all history and lock schema scenarios; test schema rolled back'

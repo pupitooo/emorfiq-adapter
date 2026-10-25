@@ -31,6 +31,29 @@ export function statusBadge(status) {
     return node('span', `badge ${Object.hasOwn(states, status) ? status : 'off'}`, states[status] ?? status);
 }
 
+export function lockStateBadge(state) {
+    const states = { active: ['on', 'Držený'], expired: ['abandoned', 'Po expiraci'], reserved: ['in_progress', 'Rezervováno'] };
+    const [style, label] = states[state] ?? ['off', state];
+    return node('span', `badge ${style}`, label);
+}
+
+export function protectionBadges(row) {
+    const badges = node('div', 'badge-stack');
+    if (row.without_overlapping) badges.append(node('span', 'badge off', 'Proti překryvu'));
+    if (row.on_one_server) badges.append(node('span', 'badge off', 'Jeden server'));
+    if (!badges.childElementCount) badges.append(node('span', 'badge off', 'Bez ochran'));
+    return badges;
+}
+
+export function runLockBadges(row) {
+    const badges = node('div', 'badge-stack');
+    if (row.overlap_locked) badges.append(node('span', 'badge on', 'Brání překryvu'));
+    if (row.overlap_expired) badges.append(node('span', 'badge abandoned', 'Čeká na zotavení'));
+    if (row.occurrence_reserved) badges.append(node('span', 'badge in_progress', 'Výskyt rezervován'));
+    if (!badges.childElementCount) badges.append(node('span', 'badge off', 'Žádné zámky'));
+    return badges;
+}
+
 export function duration(row) {
     if (!row.finished_at) return '—';
     const milliseconds = Date.parse(row.finished_at) - Date.parse(row.started_at);

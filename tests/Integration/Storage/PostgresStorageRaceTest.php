@@ -183,7 +183,7 @@ final readonly class PostgresStorageRaceTest
     private function lock(StorageDatabase $db, RunClaim $claim): void
     {
         $db->connection->beginTransaction();
-        $db->connection->query('SELECT id FROM task_runs WHERE id = ' . $claim->id . ' FOR UPDATE');
+        $db->connection->query('SELECT run_id FROM task_locks WHERE run_id = ' . $claim->id . ' FOR UPDATE');
     }
 
     /**

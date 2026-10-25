@@ -98,8 +98,8 @@ final class ScheduledExecution
 
     /**
      * Runs the task callback after the scheduler gates have passed.
-     * With both protections disabled, executes directly without reservation or completion storage calls.
-     * With either or both enabled, reuses the gates' claim or acquires one before resolving the task;
+     * Always records a run, acquiring locks only for enabled protections.
+     * Reuses the gates' claim or acquires one before resolving the task;
      * a denied claim skips execution. After a claimed run, clears local state even if execution or finish fails.
      *
      * @throws CompletionRejectedException
@@ -109,12 +109,6 @@ final class ScheduledExecution
      */
     public function execute(): void
     {
-        if (! $this->definition->withoutOverlapping && ! $this->definition->onOneServer) {
-            $this->executor->execute($this->definition);
-
-            return;
-        }
-
         $claim = $this->claim();
         if ($claim === null) {
             return;
