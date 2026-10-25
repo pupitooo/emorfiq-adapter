@@ -52,30 +52,6 @@ create a new provider and rebuild the execution plan; a long-running process
 needs an explicit reload or restart strategy. The current provider does not
 watch the file or refresh itself.
 
-### Reading on each access
-
-An alternative provider could read and validate the file inside every
-`getConfiguration()` call, rather than once in its constructor. This could suit
-a long-running worker that reuses its provider and calls `run()` once per minute:
-
-1. At 10:00, `run()` builds its schedule from the current file.
-2. At 10:01, an operator changes a cron expression in the file.
-3. At 10:02, the next `run()` calls `getConfiguration()` while building a new
-   schedule and receives the updated, validated configuration.
-
-The current snapshot provider would keep its original values until recreated.
-Reading on each access is defensible if each read marks the start of a new
-execution cycle and the caller accepts loading failures at that point. Each
-returned snapshot can still be immutable. Existing events are not updated by
-reading the file; the caller must build a new schedule from the returned data.
-
-The supplied cron starts a new PHP process for `bin/run.php` every minute, and
-that process creates a new provider. It already loads the file for each run,
-so reading on every access offers no freshness benefit in the current setup.
-A future long-running process could instead use an explicit reload between
-cycles to control when the configuration changes. Neither refresh strategy is
-implemented by the current provider.
-
 ## When requirements change
 
 The configuration source, input validation, and refresh policy are separate
