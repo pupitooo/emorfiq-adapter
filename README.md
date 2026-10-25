@@ -32,6 +32,8 @@ make docs
 Open **[http://localhost:8089](http://localhost:8089)**. The documentation runs
 independently of the application and refreshes automatically when Markdown changes.
 Stop it with `make docs-stop`.
+See [Documentation workflow](docs/development/documentation.md) for validation,
+export, and GitHub Pages publication.
 
 ## Architecture
 
@@ -62,11 +64,8 @@ resolves tasks through application-owned contracts before calling `Task::run()`.
 Configuration loading, scheduler integration, dependency injection, and task
 execution all belong inside the blue system boundary.
 
-| Topic | Documentation |
-| --- | --- |
-| Detailed diagram, execution flow, and dependency boundaries | [Architecture](docs/architecture.md) |
-| Lifecycle logs and failure handling | [Task execution](docs/task-execution.md) |
-| Adding tasks and constructor dependencies | [Task services](docs/task-services.md) |
-| Schedule fields, cron, time zones, and validation | [Scheduler JSON](docs/configuration/format.md) |
-| Docker services, ports, logs, and checks | [Local environment](docs/development/local-environment.md) |
-| Preview, build, and GitHub Pages publication | [Documentation workflow](docs/development/documentation.md) |
+See [Architecture](docs/architecture.md) for the detailed execution flow,
+contracts, dependency boundaries, and current implementation limits.
+Use [Task services](docs/task-services.md) to add tasks and their dependencies,
+[Task execution](docs/task-execution.md) for lifecycle logs and failure handling,
+and [Scheduler JSON](docs/configuration/format.md) to configure schedules.

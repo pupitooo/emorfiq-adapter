@@ -114,17 +114,13 @@ instantiation are not checked by the JSON parser.
 
 ## Task registration
 
-Each `task` value must match a registered service implementing
-`App\Task\Contract\Task`. Concrete tasks in `app/Task/Execution/` are
-registered automatically. JSON defines the schedule; PHP service configuration
-provides constructor dependencies. See [Task services](../task-services.md) for
-registration, autowiring, instance lifetimes, and resolution failures.
+See [Task services](../task-services.md) for registration and dependencies,
+[Task resolution](../task-resolution.md) for service lookup, and
+[LaravelAdapter execution conditions](../adapter/laravel.md#execution-conditions)
+for when tasks run.
 
-Tasks are resolved only when their schedules are due and event conditions pass;
-see [LaravelAdapter execution conditions](../adapter/laravel.md#execution-conditions).
+## Loading approach
 
-## Implementation and tests
-
-See [Configuration loading](loading.md) for typed objects, cached
-snapshots, parser behavior, and exception chains. [Configuration tests](tests.md)
-describes valid and invalid fixtures and the coverage of each test suite.
+See [Configuration loading](loading.md) for the benefits and tradeoffs of typed
+configuration, declarative validation, and immutable snapshots, and the
+requirements that could justify a different source, shared schema, or reload policy.
