@@ -41,7 +41,7 @@ validation:
 nav:
   - Intro: index.md
   - Application:
-      - Architecture: architecture.md
+      - Code overview: architecture.md
       - Adapter:
           - Overview: adapter/index.md
           - LaravelAdapter: adapter/laravel.md
@@ -52,6 +52,7 @@ nav:
   - Execution:
       - Mutex layers: execution/mutex-layers.md
       - Coordination: execution/coordination.md
+      - History and locks: execution/history.md
       - Storage: execution/storage.md
       - Recovery: execution/recovery.md
       - External effects: execution/external-effects.md
@@ -64,6 +65,7 @@ nav:
       - Design: configuration/loading.md
   - Development:
       - Local environment: development/local-environment.md
+      - Concurrency demo: development/concurrency-demo.md
       - Database: development/database.md
       - Database queries: development/database-queries.md
       - Migrations: development/migrations.md
