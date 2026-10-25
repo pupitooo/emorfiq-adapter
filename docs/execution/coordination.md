@@ -114,7 +114,8 @@ original process reports its result. It must never become `in_progress` again.
 
 `finished_at` is exclusively the completion time reported by the original
 process, not recovery detection time. `abandoned_by` identifies the recovering
-process instance. Repeated recovery must not overwrite attribution or time.
+server through its configured [server identity](../development/server-identity.md).
+Repeated recovery must not overwrite attribution or time.
 No separate `succeeded_at`, `failed_at`, or combined overlap status is needed.
 
 Completion checks row ID, token, and status in (`in_progress`, `abandoned`), not

@@ -18,6 +18,9 @@ arguments explicitly and use aliases to select interface implementations.
 
 See [Task services](../task-services.md) for adding tasks and their dependencies.
 
+The scheduler entry point also requires `SERVER_ID`; see
+[Server identity](server-identity.md) for configuration and semantics.
+
 ## Database boundary
 
 Set these environment variables for the scheduler and Adapter UI:

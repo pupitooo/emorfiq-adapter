@@ -66,6 +66,7 @@ nav:
       - Concurrency demo: development/concurrency-demo.md
   - Development:
       - Local environment: development/local-environment.md
+      - Server identity: development/server-identity.md
       - Service wiring: development/service-wiring.md
       - Database: development/database.md
       - Migrations: development/migrations.md

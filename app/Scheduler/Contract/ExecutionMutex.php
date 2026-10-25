@@ -39,7 +39,7 @@ interface ExecutionMutex
      * Callers may resolve and execute the task only after receiving a claim.
      *
      * @param DateTimeImmutable $scheduledFor Intended occurrence, normalized to a UTC minute.
-     * @param string $claimedBy Unique scheduler process instance identifier, used for recovery attribution.
+     * @param string $claimedBy Configured server identifier, used for recovery attribution.
      * @return RunClaim|null Committed reservation, or null when concurrency protection denies the claim.
      * @throws MutexStorageException When a storage operation fails.
      * @throws ReservationUnconfirmedException When commit cannot be confirmed; do not execute or blindly retry.
@@ -66,7 +66,7 @@ interface ExecutionMutex
      * Records recovery time and actor without setting completion time or overwriting prior recovery history.
      * Recovery neither stops nor retries tasks. A lock is expired at or after its deadline.
      *
-     * @param string $recoveredBy Unique process instance identifier responsible for recovery.
+     * @param string $recoveredBy Configured identifier of the server responsible for recovery.
      * @return int Number of removed overlap locks, including locks whose history was deleted.
      * @throws MutexStorageException When recovery cannot be confirmed.
      */

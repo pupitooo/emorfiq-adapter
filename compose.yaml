@@ -70,6 +70,9 @@ services:
 
   scheduler:
     <<: *runtime
+    environment:
+      <<: *database-environment
+      SERVER_ID: ${SERVER_ID:-emorfiq-local}
     command: ["supercronic", "-quiet", "-passthrough-logs", "-overlapping", "/app/docker/crontab"]
     init: true
     healthcheck:

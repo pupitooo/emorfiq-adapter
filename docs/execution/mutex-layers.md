@@ -64,7 +64,7 @@ and [Recovery](recovery.md) for state transitions.
 
 1. `LaravelAdapter::run()` captures the invocation time. `createSchedule()`
    normalizes it to a UTC minute and creates a `ScheduledExecution` with the
-   definition and process ID for each event. Registration makes no storage calls.
+   definition and configured server ID for each event. Registration makes no storage calls.
 2. `EventExecutions` stores the event-to-context mapping in a `WeakMap`. Both
    mutex adapters retrieve that same context; `forOccurrence()` also rejects a
    scheduling time outside its registered minute.

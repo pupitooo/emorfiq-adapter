@@ -25,6 +25,7 @@ make migrate
 - [Database migrations](docs/development/migrations.md)
 - [Reset the database](docs/development/local-environment.md#reset-database-and-logs)
 - Ports, logs, and checks: [Local environment](docs/development/local-environment.md).
+- `SERVER_ID`: [Server identity](docs/development/server-identity.md).
 - Sample simulations, worker crash, and late completion: [Concurrency demo](docs/development/concurrency-demo.md).
 
 ## Documentation

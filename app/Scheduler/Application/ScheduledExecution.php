@@ -29,7 +29,7 @@ final class ScheduledExecution
     private ?RunClaim $claim = null;
 
     /**
-     * Binds scheduling gates and task execution to the same definition, occurrence and process identity.
+     * Binds scheduling gates and task execution to the same definition, occurrence and server identity.
      * Construction does not access storage or reserve execution; claim() does so only when needed.
      *
      * @param DateTimeImmutable $scheduledFor Intended occurrence, normalized to a UTC minute by the adapter.
@@ -37,7 +37,7 @@ final class ScheduledExecution
     public function __construct(
         private readonly ScheduleDefinition $definition,
         private readonly DateTimeImmutable $scheduledFor,
-        private readonly string $processId,
+        private readonly string $serverId,
         private readonly ExecutionMutex $mutex,
         private readonly TaskExecutor $executor,
     ) {}
@@ -59,7 +59,7 @@ final class ScheduledExecution
             $this->claim = $this->mutex->claim(
                 definition: $this->definition,
                 scheduledFor: $this->scheduledFor,
-                claimedBy: $this->processId,
+                claimedBy: $this->serverId,
             );
         }
 
