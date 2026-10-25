@@ -16,6 +16,8 @@ make up
 
 Open [http://localhost:8088](http://localhost:8088) to view configuration, task history, and logs.
 After source changes, run `make up` again to rebuild the application image.
+Compose supplies a local scheduler identity; see
+[Server identity](server-identity.md) to configure `SERVER_ID`.
 To choose another port:
 
 ```sh

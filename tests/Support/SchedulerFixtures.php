@@ -43,7 +43,7 @@ final readonly class SchedulerFixtures
             $executor,
             $configuration,
             $mutex ?? new RecordingExecutionMutex(),
-            'test-worker',
+            'test-server',
             $executions,
         );
     }

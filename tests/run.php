@@ -14,6 +14,7 @@ use Tests\Unit\Scheduler\CronConfigurationParserTest;
 use Tests\Unit\Scheduler\InvalidJsonConfigurationParserTest;
 use Tests\Unit\Scheduler\JsonConfigurationParserTest;
 use Tests\Unit\Scheduler\LockingConfigurationParserTest;
+use Tests\Unit\Scheduler\ServerIdTest;
 use Tests\Unit\Task\PingTaskTest;
 
 $projectDir = dirname(__DIR__);
@@ -25,6 +26,7 @@ new JsonConfigurationParserTest()->run();
 new LockingConfigurationParserTest()->run();
 new InvalidJsonConfigurationParserTest()->run();
 new CronConfigurationParserTest()->run();
+new ServerIdTest()->run();
 new InMemorySchedulerConfigurationTest()->run();
 new SymfonyTaskResolverTest()->run();
 new LaravelAdapterTest()->run();

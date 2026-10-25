@@ -8,6 +8,7 @@ use App\Scheduler\Infrastructure\Configuration\InMemorySchedulerConfiguration;
 use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
 use App\Scheduler\Infrastructure\Laravel\Mutex\EventExecutions;
 use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
+use App\Scheduler\Infrastructure\ServerId;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
@@ -15,6 +16,8 @@ use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
 $projectDir = dirname(__DIR__);
 
 require $projectDir . '/vendor/autoload.php';
+
+$serverId = ServerId::fromEnvironment();
 
 // This standalone setup uses Symfony DependencyInjection to load service definitions
 // from config/services.php and autowire their dependencies.
@@ -53,7 +56,7 @@ $adapter = new LaravelAdapter(
     executor: $executor,
     configuration: $configuration,
     mutex: $mutex,
-    processId: bin2hex(random_bytes(16)),
+    serverId: $serverId,
     executions: $executions,
 );
 $adapter->run();

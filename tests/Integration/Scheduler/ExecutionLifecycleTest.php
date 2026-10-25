@@ -136,7 +136,7 @@ final readonly class ExecutionLifecycleTest
         A::same(2, count($scenario->mutex->finishes));
         foreach ($scenario->mutex->claims as $attempt) {
             A::same('2026-10-26 08:00:00.000000 +00:00', $attempt['scheduledFor']->format('Y-m-d H:i:s.u P'));
-            A::same('test-worker', $attempt['claimedBy']);
+            A::same('test-server', $attempt['claimedBy']);
         }
     }
 

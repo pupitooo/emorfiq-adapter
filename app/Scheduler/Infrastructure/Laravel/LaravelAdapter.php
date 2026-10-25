@@ -30,7 +30,7 @@ final readonly class LaravelAdapter implements Adapter
         private TaskExecutor $executor,
         private SchedulerConfiguration $configuration,
         private ExecutionMutex $mutex,
-        private string $processId,
+        private string $serverId,
         private EventExecutions $executions,
     ) {}
 
@@ -103,7 +103,7 @@ final readonly class LaravelAdapter implements Adapter
         $execution = new ScheduledExecution(
             definition: $definition,
             scheduledFor: $scheduledFor,
-            processId: $this->processId,
+            serverId: $this->serverId,
             mutex: $this->mutex,
             executor: $this->executor,
         );
