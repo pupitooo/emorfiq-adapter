@@ -1,4 +1,4 @@
-.PHONY: up down logs psql migrate migration-status test check docs docs-stop docs-check docs-export
+.PHONY: up down logs psql migrate migration-status test test-db test-recovery check docs docs-stop docs-check docs-export
 
 up:
 	@docker compose up -d --build --wait
@@ -23,6 +23,19 @@ migration-status:
 test:
 	@docker compose build check
 	@docker compose run --rm --no-deps -T check composer test
+
+test-db:
+	@docker compose up -d --wait postgres
+	@set -eu; \
+	  sql_input=$$(mktemp); \
+	  trap 'rm -f "$$sql_input"' EXIT; \
+	  trap 'exit 1' HUP INT TERM; \
+	  cat tests/Database/setup.sql migrations/001_task_runs.sql tests/Database/task-runs.sql > "$$sql_input"; \
+	  docker compose exec -T postgres sh -c 'exec psql -X --set=ON_ERROR_STOP=on --username="$${POSTGRES_USER}" --dbname="$${POSTGRES_DB}"' < "$$sql_input"
+
+test-recovery:
+	@docker compose build check
+	@docker compose run --rm --no-deps -T check composer test:recovery
 
 check:
 	@docker compose build check
