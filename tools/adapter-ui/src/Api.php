@@ -27,11 +27,12 @@ final readonly class Api
             $data = match ($path) {
                 '/api/configuration' => new ConfigurationView($this->root . '/config/scheduler.json')->read(),
                 '/api/runs' => new TaskRunHistory()->read($query),
+                '/api/locks' => new TaskLocks()->read($query),
                 default => [
                     'error' => 'Neznámý endpoint.',
                 ],
             };
-            if (! in_array($path, ['/api/configuration', '/api/runs'], true)) {
+            if (! in_array($path, ['/api/configuration', '/api/runs', '/api/locks'], true)) {
                 http_response_code(404);
             }
             echo json_encode($data, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE);
@@ -47,7 +48,7 @@ final readonly class Api
             $failure instanceof ConfigurationException => [422, $failure->getMessage()],
             ($failure instanceof DriverException || $failure instanceof PDOException)
                 && $failure->getCode() === '42P01' => [503,
-                    'Tabulka historie zatím neexistuje. Spusťte make migrate.'],
+                    'Schéma historie a zámků není připravené. Po vytvoření nové DB spusťte make migrate.'],
             default => [503, 'Data se nepodařilo načíst. Ověřte dostupnost zdroje a nastavení služby web.'],
         };
         http_response_code($status);

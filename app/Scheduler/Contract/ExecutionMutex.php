@@ -33,7 +33,8 @@ interface ExecutionMutex
     public function isOccurrenceReserved(string $scheduleId, DateTimeImmutable $scheduledFor): bool;
 
     /**
-     * Atomically recovers expired overlap locks for this schedule and reserves its occurrence.
+     * Atomically recovers expired overlap locks, records a run and acquires requested protections.
+     * Both protections disabled still creates a fresh history row, without any lock.
      * Returns only after commit is confirmed and the reservation transaction is closed.
      * Callers may resolve and execute the task only after receiving a claim.
      *
@@ -50,7 +51,8 @@ interface ExecutionMutex
     ): ?RunClaim;
 
     /**
-     * Records the original owner's result by run ID and token, including after expiry or abandonment.
+     * Records the original owner's result and releases its overlap lock by run ID and token.
+     * Accepts completion after expiry or abandonment; occurrence reservations remain stored separately.
      * Preserves abandonment history and leaves replacement runs and confirmed results unchanged.
      *
      * @param string|null $error Failure diagnostic for Failed; null for Succeeded.
@@ -60,12 +62,12 @@ interface ExecutionMutex
     public function finish(RunClaim $claim, RunOutcome $outcome, ?string $error = null): bool;
 
     /**
-     * Marks expired overlap-protected in-progress runs for this schedule as abandoned.
+     * Removes this schedule's expired overlap locks and marks linked in-progress runs as abandoned.
      * Records recovery time and actor without setting completion time or overwriting prior recovery history.
      * Recovery neither stops nor retries tasks. A lock is expired at or after its deadline.
      *
      * @param string $recoveredBy Unique process instance identifier responsible for recovery.
-     * @return int Number of newly abandoned runs.
+     * @return int Number of removed overlap locks, including locks whose history was deleted.
      * @throws MutexStorageException When recovery cannot be confirmed.
      */
     public function recover(string $scheduleId, string $recoveredBy): int;

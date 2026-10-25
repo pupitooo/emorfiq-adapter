@@ -26,7 +26,7 @@ final readonly class LaravelLockingTest
         $this->supportsIndependentProtectionFlags();
         $this->skipsLiveOverlapBeforeClaiming();
         $this->skipsAtomicConflictBeforeResolving();
-        $this->ignoresUnprotectedAndNotDueTasks();
+        $this->recordsUnprotectedRunsAndSkipsNotDueTasks();
     }
 
     /**
@@ -164,7 +164,7 @@ final readonly class LaravelLockingTest
     /**
      * @throws Exception
      */
-    private function ignoresUnprotectedAndNotDueTasks(): void
+    private function recordsUnprotectedRunsAndSkipsNotDueTasks(): void
     {
         $scenario = new MutexScenario([
             new ScheduleDefinition('ordinary', PingTask::class, '* * * * *'),
@@ -172,8 +172,10 @@ final readonly class LaravelLockingTest
         ]);
         $scenario->run();
         A::same([PingTask::class], $scenario->resolver->resolved);
-        A::same([], $scenario->mutex->claims);
+        A::same(1, count($scenario->mutex->claims));
+        A::same('ordinary', $scenario->mutex->claims[0]['definition']->id ?? null);
         A::same([], $scenario->mutex->overlapChecks);
-        A::same([], $scenario->mutex->finishes);
+        A::same(1, count($scenario->mutex->finishes));
+        A::same(RunOutcome::Succeeded, $scenario->mutex->finishes[0]['outcome'] ?? null);
     }
 }

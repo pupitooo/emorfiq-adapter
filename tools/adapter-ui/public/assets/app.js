@@ -1,10 +1,11 @@
 import { $ } from './dom.js';
 import { loadConfiguration } from './configuration.js';
 import { loadHistory } from './history.js';
+import { loadLocks } from './locks.js';
 import { activateLogs } from './logs.js';
 
 const tabs = [...document.querySelectorAll('[role="tab"]')];
-const sections = ['configuration', 'history', 'logs'];
+const sections = ['configuration', 'history', 'locks', 'logs'];
 let selectedSection = null;
 
 function selectTab(section) {
@@ -20,7 +21,8 @@ function selectTab(section) {
     activateLogs(section === 'logs');
     if (section === 'configuration') loadConfiguration();
     if (section === 'history') loadHistory();
-    document.title = `${{ configuration: 'Konfigurace', history: 'Historie tasků', logs: 'Logy' }[section]} · emorfiq`;
+    if (section === 'locks') loadLocks();
+    document.title = `${{ configuration: 'Konfigurace', history: 'Historie tasků', locks: 'Zámky', logs: 'Logy' }[section]} · emorfiq`;
 }
 
 function navigate(section) {

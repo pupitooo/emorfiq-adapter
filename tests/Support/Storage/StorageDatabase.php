@@ -50,6 +50,15 @@ final readonly class StorageDatabase
         );
     }
 
+    public function factory(): PostgresConnectionFactory
+    {
+        return new PostgresConnectionFactory(
+            self::environment('TEST_DATABASE_DSN') . ";options='--search_path=" . $this->schema . ",pg_catalog'",
+            self::environment('TEST_DATABASE_USER'),
+            self::environment('TEST_DATABASE_PASSWORD')
+        );
+    }
+
     private static function environment(string $name): string
     {
         $value = getenv($name);
@@ -66,7 +75,7 @@ final readonly class StorageDatabase
     private function initialize(): void
     {
         $this->connection->exec('SET search_path TO ' . $this->schema . ', pg_catalog');
-        foreach (['001_task_runs.sql', '002_task_run_completion.sql'] as $migration) {
+        foreach (['001_task_runs.sql'] as $migration) {
             $sql = file_get_contents(dirname(__DIR__, 3) . '/migrations/' . $migration);
             if ($sql === false) {
                 throw new LogicException('Unable to read storage migration.');

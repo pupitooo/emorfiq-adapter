@@ -21,11 +21,13 @@ function schedule(task) {
     const grid = node('dl', 'schedule-grid');
     grid.append(definition('Cron výraz', task.cron, true), definition('Časové pásmo', task.timezone));
     const options = node('div', 'schedule-options');
-    options.append(node('span', `badge ${task.withoutOverlapping ? 'on' : 'off'}`, `Souběh: ${task.withoutOverlapping ? 'chráněný' : 'povolený'}`));
+    options.append(node('span', `badge ${task.withoutOverlapping ? 'on' : 'off'}`, `Proti překryvu: ${task.withoutOverlapping ? 'zapnuto' : 'vypnuto'}`));
     options.append(node('span', `badge ${task.onOneServer ? 'on' : 'off'}`, `Jeden server: ${task.onOneServer ? 'ano' : 'ne'}`));
     options.append(node('p', 'option-note', task.withoutOverlapping
-        ? `Expirace ochrany souběhu: ${task.overlapExpiresAfterMinutes} min od rezervace.`
-        : 'Ochrana souběhu je vypnutá; expirace se neuplatňuje.'));
+        ? `Zámek proti překryvu se uvolní po dokončení nebo zotavením po ${task.overlapExpiresAfterMinutes} min.`
+        : 'Běhy se mohou překrývat. Historie se ukládá i bez této ochrany.'));
+    if (task.onOneServer) options.append(node('p', 'option-note',
+        'Každý naplánovaný výskyt získá jen jeden proces scheduleru. Rezervace zůstává i po dokončení.'));
     item.append(title, grid, options);
     return item;
 }

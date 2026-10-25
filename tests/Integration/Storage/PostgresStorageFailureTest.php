@@ -25,6 +25,9 @@ final readonly class PostgresStorageFailureTest
         $runner->run($this->rollsBackRecoveryWhenReservationFails(...));
         $runner->run($this->translatesReadCompletionAndRecoveryFailures(...));
         $runner->run($this->preservesCallerTransaction(...));
+        $runner->run($this->rollsBackHistoryAndPartialLocksOnAcquisitionFailure(...));
+        $runner->run($this->rollsBackCompletionWhenLockReleaseFails(...));
+        $runner->run($this->rollsBackLockRemovalWhenRecoveryHistoryFails(...));
         $runner->run($this->distinguishesLostCommitAcknowledgement(...));
         $runner->run($this->distinguishesConfirmedCommitRejection(...));
     }
@@ -60,6 +63,7 @@ final readonly class PostgresStorageFailureTest
         ));
         A::same(false, $db->connection->inTransaction());
         A::same($before, $db->row($claim->id));
+        A::same(2, $db->value('SELECT count(*) FROM task_locks'));
     }
 
     /**
@@ -68,7 +72,7 @@ final readonly class PostgresStorageFailureTest
     private function translatesReadCompletionAndRecoveryFailures(StorageDatabase $db): void
     {
         $claim = new PostgresTaskRunStorageTest()->claim($db);
-        $db->connection->exec('ALTER TABLE task_runs RENAME TO unavailable_runs');
+        $db->connection->exec('ALTER TABLE task_locks RENAME TO unavailable_locks');
         $this->fails(fn() => $db->storage->hasLiveOverlap('sync'));
         $this->fails(fn() => $db->storage->hasOccurrence('sync', new DateTimeImmutable()));
         $this->fails(fn() => $db->storage->complete($claim, RunOutcome::Succeeded, null));
@@ -131,6 +135,61 @@ final readonly class PostgresStorageFailureTest
         ));
         A::same(false, $db->connection->inTransaction());
         A::same(0, $db->value('SELECT count(*) FROM task_runs'));
+    }
+
+    /**
+     * @throws \Exception
+     */
+    private function rollsBackHistoryAndPartialLocksOnAcquisitionFailure(StorageDatabase $db): void
+    {
+        $this->rejectChange($db, 'INSERT', 'task_locks', "NEW.lock_type = 'overlap'");
+        $this->fails(fn() => new PostgresTaskRunStorageTest()->claim($db));
+        A::same(0, $db->value('SELECT count(*) FROM task_runs'));
+        A::same(0, $db->value('SELECT count(*) FROM task_locks'));
+        A::same(false, $db->connection->inTransaction());
+    }
+
+    /**
+     * @throws \Exception
+     */
+    private function rollsBackCompletionWhenLockReleaseFails(StorageDatabase $db): void
+    {
+        $claim = new PostgresTaskRunStorageTest()->claim($db);
+        $before = $db->row($claim->id);
+        $this->rejectChange($db, 'DELETE', 'task_locks', "OLD.lock_type = 'overlap'");
+        $this->fails(fn() => $db->storage->complete($claim, RunOutcome::Succeeded, null));
+        A::same($before, $db->row($claim->id));
+        A::same(2, $db->value('SELECT count(*) FROM task_locks'));
+        A::same(false, $db->connection->inTransaction());
+    }
+
+    /**
+     * @throws \Exception
+     */
+    private function rollsBackLockRemovalWhenRecoveryHistoryFails(StorageDatabase $db): void
+    {
+        $claim = new PostgresTaskRunStorageTest()->claim($db);
+        $before = $db->row($claim->id);
+        $db->at(300);
+        $this->rejectChange($db, 'UPDATE', 'task_runs', "NEW.status = 'abandoned'");
+        $this->fails(fn() => $db->storage->abandonExpired('sync', 'recovery'));
+        A::same($before, $db->row($claim->id));
+        A::same(2, $db->value('SELECT count(*) FROM task_locks'));
+        A::same(false, $db->connection->inTransaction());
+    }
+
+    /**
+     * @throws \PDOException
+     */
+    private function rejectChange(StorageDatabase $db, string $operation, string $table, string $condition): void
+    {
+        $db->connection->exec(<<<'SQL'
+            CREATE FUNCTION reject_change() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN RAISE EXCEPTION 'Injected lock lifecycle failure'; END;
+            $$;
+            SQL);
+        $db->connection->exec('CREATE TRIGGER reject_change BEFORE ' . $operation . ' ON ' . $table
+            . ' FOR EACH ROW WHEN (' . $condition . ') EXECUTE FUNCTION reject_change()');
     }
 
     /**

@@ -11,27 +11,39 @@ CREATE TABLE task_runs (
     on_one_server boolean NOT NULL,
 
     status text NOT NULL,
-    owner_token uuid NOT NULL,
+    owner_token uuid NOT NULL UNIQUE,
     started_at timestamptz NOT NULL,
-    lease_expires_at timestamptz NOT NULL,
+    lease_expires_at timestamptz,
     finished_at timestamptz,
-    error_message text
+    error_message text,
+    abandoned_at timestamptz,
+    abandoned_by text
 );
 
--- A completed occurrence remains reserved when single-server execution is enabled.
-CREATE UNIQUE INDEX task_runs_occurrence
-    ON task_runs (schedule_id, scheduled_for)
-    WHERE on_one_server;
+CREATE TABLE task_locks (
+    schedule_id text NOT NULL,
+    lock_type text NOT NULL CHECK (lock_type IN ('overlap', 'occurrence')),
+    scheduled_for timestamptz,
+    owner_token uuid NOT NULL,
+    run_id bigint REFERENCES task_runs (id) ON DELETE SET NULL,
+    expires_at timestamptz,
+    PRIMARY KEY (owner_token, lock_type),
+    CHECK (
+        (lock_type = 'overlap' AND scheduled_for IS NULL AND expires_at IS NOT NULL)
+        OR (lock_type = 'occurrence' AND scheduled_for IS NOT NULL AND expires_at IS NULL)
+    )
+);
 
--- Other due minutes cannot overlap an active protected execution.
--- Expired leases must be transitioned explicitly; time alone does not free this index.
-CREATE UNIQUE INDEX task_runs_active_schedule
-    ON task_runs (schedule_id)
-    WHERE without_overlapping AND status = 'in_progress';
+-- Completion removes overlap locks; expired locks require explicit recovery.
+CREATE UNIQUE INDEX task_locks_overlap
+    ON task_locks (schedule_id) WHERE lock_type = 'overlap';
 
-CREATE INDEX task_runs_expiring
-    ON task_runs (lease_expires_at, id)
-    WHERE status = 'in_progress';
+-- Occurrence reservations survive completion, recovery, and history deletion.
+CREATE UNIQUE INDEX task_locks_occurrence
+    ON task_locks (schedule_id, scheduled_for) WHERE lock_type = 'occurrence';
+
+CREATE INDEX task_locks_run ON task_locks (run_id);
+CREATE INDEX task_locks_expiring ON task_locks (expires_at) WHERE lock_type = 'overlap';
 
 CREATE INDEX task_runs_history
     ON task_runs (schedule_id, scheduled_for DESC, id DESC);

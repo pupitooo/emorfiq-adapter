@@ -32,6 +32,7 @@ final readonly class ExecutionLifecycleTest
         $this->stopsAfterRejectedCompletion();
         $this->stopsAfterCompletionFailureWithoutWritingAnotherResult();
         $this->keepsOccurrenceStableAcrossLongTasks();
+        $this->recordsUnprotectedFailuresAndRequiresConfirmedClaim();
     }
 
     /**
@@ -137,6 +138,24 @@ final readonly class ExecutionLifecycleTest
             A::same('2026-10-26 08:00:00.000000 +00:00', $attempt['scheduledFor']->format('Y-m-d H:i:s.u P'));
             A::same('test-worker', $attempt['claimedBy']);
         }
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function recordsUnprotectedFailuresAndRequiresConfirmedClaim(): void
+    {
+        $definition = new ScheduleDefinition('ordinary', FailingTask::class, '* * * * *');
+        $scenario = new MutexScenario([$definition]);
+        $scenario->run();
+        A::same([FailingTask::class], $scenario->resolver->resolved);
+        A::same(1, count($scenario->mutex->claims));
+        A::same(RunOutcome::Failed, $scenario->mutex->finishes[0]['outcome'] ?? null);
+        $failure = new ReservationUnconfirmedException('History commit acknowledgement lost.');
+        $blocked = new MutexScenario([$definition], new RecordingExecutionMutex(claimFailure: $failure));
+        $this->assertFailure($blocked, $failure);
+        A::same([], $blocked->resolver->resolved);
+        A::same([], $blocked->mutex->finishes);
     }
 
     private function definition(string $id, string $task): ScheduleDefinition

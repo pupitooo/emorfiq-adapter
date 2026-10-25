@@ -31,7 +31,8 @@ interface TaskRunStorage
     public function hasOccurrence(string $scheduleId, DateTimeImmutable $scheduledFor): bool;
 
     /**
-     * Recovers this schedule's expired locks and inserts its reservation snapshot in one transaction.
+     * Recovers this schedule's expired locks, records a run and acquires requested locks in one transaction.
+     * Unprotected executions record history without creating locks. Conflicts retain no new run or locks.
      *
      * @see ExecutionMutex::claim()
      * @throws MutexStorageException
@@ -44,7 +45,7 @@ interface TaskRunStorage
     ): ?RunClaim;
 
     /**
-     * Conditionally records completion on the original run row.
+     * Conditionally records completion and removes only that owner's overlap lock in one transaction.
      *
      * @see ExecutionMutex::finish()
      * @throws MutexStorageException
@@ -52,7 +53,8 @@ interface TaskRunStorage
     public function complete(RunClaim $claim, RunOutcome $outcome, ?string $error): bool;
 
     /**
-     * Atomically abandons expired protected runs, rechecking state and database time after row-lock waits.
+     * Removes expired overlap locks and marks linked unfinished runs abandoned in one transaction.
+     * Rechecks expiry after row-lock waits; orphaned locks remain recoverable after history deletion.
      *
      * @see ExecutionMutex::recover()
      * @throws MutexStorageException

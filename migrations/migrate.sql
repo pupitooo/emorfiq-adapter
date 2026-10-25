@@ -21,14 +21,4 @@ SELECT NOT EXISTS (
     VALUES (1, 'task_runs');
 \endif
 
-SELECT NOT EXISTS (
-    SELECT 1 FROM schema_migrations WHERE version = 2
-) AS apply_002 \gset
-
-\if :apply_002
-    \ir 002_task_run_completion.sql
-    INSERT INTO schema_migrations (version, name)
-    VALUES (2, 'task_run_completion');
-\endif
-
 COMMIT;
