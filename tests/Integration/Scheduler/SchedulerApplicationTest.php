@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Integration\Scheduler;
 
+use App\Scheduler\Infrastructure\Laravel\Mutex\CoordinatedEventMutex;
+use App\Scheduler\Infrastructure\Laravel\Mutex\CoordinatedSchedulingMutex;
 use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use App\Task\Infrastructure\Symfony\SymfonyTaskResolver;
-use DateTimeImmutable;
 use Exception;
 use Illuminate\Console\Scheduling\CallbackEvent;
 use Illuminate\Console\Scheduling\EventMutex;
@@ -17,6 +18,7 @@ use LogicException;
 use Psr\Log\LoggerInterface;
 use Tests\Fixtures\Scheduler\UnusedEventMutex;
 use Tests\Fixtures\Task\LoggingTask;
+use Tests\Support\SchedulerFixtures;
 use Tests\Support\TaskServices;
 use Throwable;
 
@@ -35,8 +37,6 @@ final readonly class SchedulerApplicationTest
         $this->scheduleCreationKeepsGlobalContainer();
         $this->scheduleFailureKeepsGlobalContainer();
         $this->scheduleBuildsKeepSeparateEvents();
-        $this->rejectsOverlappingExecution();
-        $this->rejectsSingleServerExecution();
     }
 
     /**
@@ -53,6 +53,12 @@ final readonly class SchedulerApplicationTest
         if ($application->environment() !== 'production' || $application->isDownForMaintenance()) {
             throw new LogicException('The scheduler must default to production without maintenance mode.');
         }
+        if (
+            ! $application->make(EventMutex::class) instanceof CoordinatedEventMutex
+            || ! $application->make(SchedulingMutex::class) instanceof CoordinatedSchedulingMutex
+        ) {
+            throw new LogicException('Compiled services must inject both coordinated Laravel mutexes.');
+        }
     }
 
     /**
@@ -60,7 +66,7 @@ final readonly class SchedulerApplicationTest
      */
     private function callbacksUseCurrentContainer(): void
     {
-        $application = new SchedulerApplication('testing');
+        $application = SchedulerFixtures::application('testing');
         $event = new CallbackEvent(
             new UnusedEventMutex(),
             static fn(ContainerContract $container): ContainerContract => $container,
@@ -79,7 +85,7 @@ final readonly class SchedulerApplicationTest
         $services = TaskServices::container('/dev/null');
         $resolver = new SymfonyTaskResolver($services);
         $event = new CallbackEvent(new UnusedEventMutex(), static fn() => $resolver->resolve(LoggingTask::class));
-        $task = $event->run(new SchedulerApplication());
+        $task = $event->run(SchedulerFixtures::application());
         if (! $task instanceof LoggingTask || $task->logger !== $services->get(LoggerInterface::class)) {
             throw new LogicException('Scheduled callbacks must retain Symfony task construction and dependencies.');
         }
@@ -90,8 +96,8 @@ final readonly class SchedulerApplicationTest
      */
     private function containersKeepSeparateBindings(): void
     {
-        $first = new SchedulerApplication();
-        $second = new SchedulerApplication();
+        $first = SchedulerFixtures::application();
+        $second = SchedulerFixtures::application();
         if ($first->make(Container::class) !== $first || $second->make(Container::class) !== $second) {
             throw new LogicException('Each scheduler application must resolve its own container.');
         }
@@ -109,7 +115,7 @@ final readonly class SchedulerApplicationTest
     private function creationPreservesGlobalContainer(): void
     {
         $original = Container::getInstance();
-        new SchedulerApplication();
+        SchedulerFixtures::application();
         if (Container::getInstance() !== $original) {
             throw new LogicException('Creating the scheduler context must not replace the global container.');
         }
@@ -121,7 +127,7 @@ final readonly class SchedulerApplicationTest
     private function scheduleCreationKeepsGlobalContainer(): void
     {
         $original = Container::getInstance();
-        $application = new SchedulerApplication();
+        $application = SchedulerFixtures::application();
         $mutex = new UnusedEventMutex();
         $application->bind(EventMutex::class, static function () use ($original, $mutex): EventMutex {
             if (Container::getInstance() !== $original) {
@@ -146,7 +152,7 @@ final readonly class SchedulerApplicationTest
     private function scheduleFailureKeepsGlobalContainer(): void
     {
         $original = Container::getInstance();
-        $application = new SchedulerApplication();
+        $application = SchedulerFixtures::application();
         $application->bind(SchedulingMutex::class, static function () use ($original): never {
             if (Container::getInstance() !== $original) {
                 throw new LogicException('Failing dependency resolution must preserve the global container.');
@@ -172,53 +178,12 @@ final readonly class SchedulerApplicationTest
      */
     private function scheduleBuildsKeepSeparateEvents(): void
     {
-        $application = new SchedulerApplication();
+        $application = SchedulerFixtures::application();
         $first = $application->createSchedule();
         $first->call(static fn() => null);
         $second = $application->createSchedule();
         if ($first === $second || $second->events() !== []) {
             throw new LogicException('Each schedule build must start with a fresh event list.');
         }
-    }
-
-    /**
-     * @throws Throwable
-     */
-    private function rejectsOverlappingExecution(): void
-    {
-        $application = new SchedulerApplication();
-        $event = $application->createSchedule()->call(static fn() => null)
-            ->name('overlap-test')->withoutOverlapping();
-        $this->assertNotImplemented(static fn() => $event->run($application));
-    }
-
-    /**
-     * @throws Throwable
-     */
-    private function rejectsSingleServerExecution(): void
-    {
-        $schedule = new SchedulerApplication()->createSchedule();
-        $event = $schedule->call(static fn() => null)->name('single-server-test')->onOneServer();
-        $this->assertNotImplemented(static fn() => $schedule->serverShouldRun($event, new DateTimeImmutable()));
-    }
-
-    /**
-     * @param callable(): mixed $operation
-     * @param-immediately-invoked-callable $operation
-     * @throws Throwable
-     */
-    private function assertNotImplemented(callable $operation): void
-    {
-        try {
-            $operation();
-        } catch (LogicException $exception) {
-            if ($exception->getMessage() !== 'Not Implemented') {
-                throw new LogicException('Locking must fail explicitly as not implemented.', previous: $exception);
-            }
-
-            return;
-        }
-
-        throw new LogicException('Unsupported locking must not silently succeed.');
     }
 }

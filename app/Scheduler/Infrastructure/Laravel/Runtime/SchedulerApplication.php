@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Scheduler\Infrastructure\Laravel\Runtime;
 
-use App\Scheduler\Infrastructure\Laravel\Mutex\NotImplementedEventMutex;
-use App\Scheduler\Infrastructure\Laravel\Mutex\NotImplementedSchedulingMutex;
 use Exception;
 use Illuminate\Console\Scheduling\EventMutex;
 use Illuminate\Console\Scheduling\Schedule as IlluminateSchedule;
@@ -21,13 +19,15 @@ final class SchedulerApplication extends Container
     private const string DEFAULT_ENVIRONMENT = 'production';
 
     public function __construct(
+        EventMutex $eventMutex,
+        SchedulingMutex $schedulingMutex,
         private readonly string $environmentName = self::DEFAULT_ENVIRONMENT,
     ) {
         $this->instance(self::class, $this);
         $this->instance(Container::class, $this);
         $this->instance(ContainerContract::class, $this);
-        $this->instance(EventMutex::class, new NotImplementedEventMutex());
-        $this->instance(SchedulingMutex::class, new NotImplementedSchedulingMutex());
+        $this->instance(EventMutex::class, $eventMutex);
+        $this->instance(SchedulingMutex::class, $schedulingMutex);
     }
 
     public function environment(): string

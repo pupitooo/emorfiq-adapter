@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Tests\Integration\Scheduler;
 
 use App\Scheduler\Domain\ScheduleDefinition;
-use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
-use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use App\Task\Execution\PingTask;
 use DateTimeImmutable;
 use Exception;
@@ -112,7 +110,7 @@ final readonly class DueEventsTest
             Date::setTestNow(new DateTimeImmutable($instant));
             $executor = TaskServices::executor(TaskServices::container($path));
             $configuration = SchedulerFixtures::configuration($definitions);
-            new LaravelAdapter(new SchedulerApplication(), $executor, $configuration)->run();
+            SchedulerFixtures::adapter($executor, $configuration)->run();
 
             return LogRecords::taskMessages($path);
         } finally {

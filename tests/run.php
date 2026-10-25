@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Tests\Integration\Scheduler\DueEventsTest;
+use Tests\Integration\Scheduler\ExecutionLifecycleTest;
 use Tests\Integration\Scheduler\InMemorySchedulerConfigurationTest;
 use Tests\Integration\Scheduler\LaravelAdapterTest;
 use Tests\Integration\Scheduler\LaravelLockingTest;
@@ -29,6 +30,7 @@ new InMemorySchedulerConfigurationTest()->run();
 new SymfonyTaskResolverTest()->run();
 new LaravelAdapterTest()->run();
 new LaravelLockingTest()->run();
+new ExecutionLifecycleTest()->run();
 new DueEventsTest()->run();
 new SchedulerApplicationTest()->run();
 new TaskExecutionLoggingTest()->run();

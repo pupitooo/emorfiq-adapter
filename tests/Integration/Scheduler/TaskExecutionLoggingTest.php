@@ -6,7 +6,6 @@ namespace Tests\Integration\Scheduler;
 
 use App\Scheduler\Domain\ScheduleDefinition;
 use App\Scheduler\Infrastructure\Laravel\LaravelAdapter;
-use App\Scheduler\Infrastructure\Laravel\Runtime\SchedulerApplication;
 use App\Task\Execution\PingTask;
 use DateTimeImmutable;
 use Error;
@@ -185,8 +184,7 @@ final readonly class TaskExecutionLoggingTest
      */
     private function adapter(string $path, array $definitions): LaravelAdapter
     {
-        return new LaravelAdapter(
-            new SchedulerApplication(),
+        return SchedulerFixtures::adapter(
             TaskServices::executor(TaskServices::container($path)),
             SchedulerFixtures::configuration($definitions),
         );
