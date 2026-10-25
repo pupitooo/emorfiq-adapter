@@ -98,6 +98,14 @@ final readonly class InvalidJsonConfigurationParserTest
             'code' => Message::TypeMismatch,
             'path' => ['tasks', 0, 'overlapExpiresAfterMinutes'],
         ],
+        'overlap-expiry-without-protection.json' => [
+            'code' => Message::FailedAssertion,
+            'path' => ['tasks', 1, 'overlapExpiresAfterMinutes'],
+        ],
+        'overlap-expiry-with-disabled-protection.json' => [
+            'code' => Message::FailedAssertion,
+            'path' => ['tasks', 0, 'overlapExpiresAfterMinutes'],
+        ],
         'unknown-root-field.json' => [
             'code' => Message::UnexpectedItem,
             'path' => ['enabled'],

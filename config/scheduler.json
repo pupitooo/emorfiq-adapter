@@ -6,7 +6,6 @@
             "task": "App\\Task\\Execution\\PingTask",
             "cron": "* * * * *",
             "withoutOverlapping": false,
-            "overlapExpiresAfterMinutes": 60,
             "onOneServer": false
         }
     ]

@@ -58,7 +58,7 @@ Each element of `tasks` must be a JSON object:
 | `cron` | string | Yes | Five-field cron expression or a [supported alias](cron.md), for example `@daily`. |
 | `timezone` | string | No | PHP time zone identifier, for example `UTC` or `Europe/Prague`. Defaults to `UTC` when omitted. |
 | `withoutOverlapping` | boolean | No | Prevent overlapping runs. Defaults to `false`. |
-| `overlapExpiresAfterMinutes` | positive integer | No | Execution lock expiration in minutes. Defaults to `60` (1 hour); used when `withoutOverlapping` is enabled. |
+| `overlapExpiresAfterMinutes` | positive integer | No | Execution lock expiration in minutes. Defaults to `60` (1 hour). May be specified only with `withoutOverlapping: true`. |
 | `onOneServer` | boolean | No | Coordinate each occurrence across servers. Defaults to `false`. |
 
 The same task class can have multiple schedules, each with its own unique `id`.
@@ -106,6 +106,7 @@ Configuration loading rejects:
 - Explicit `timezone` values that are not non-empty strings or valid PHP time zones.
 - Non-boolean `withoutOverlapping` or `onOneServer` values, including explicit `null`.
 - Non-integer or non-positive `overlapExpiresAfterMinutes` values, including explicit `null`.
+- Explicit `overlapExpiresAfterMinutes` when `withoutOverlapping` is omitted or `false`.
 - Unknown fields at the document root or in a task definition.
 
 These failures raise `ConfigurationException`. Task class existence and

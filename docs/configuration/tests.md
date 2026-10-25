@@ -86,12 +86,14 @@ All suites are included in `tests/run.php`.
 combinations of both flags, and positive integer expirations. It rejects numeric
 and string flags, nulls, arrays, objects, non-positive expirations, and
 floating-point or string expirations. Failures identify the affected field.
+Explicit expiration also fails when `withoutOverlapping` is omitted or `false`,
+including an explicit `60` and configurations with only `onOneServer` enabled.
 Existing fixture assertions also check the new default values.
 
 The [locking JSON fixture](https://github.com/pupitooo/emorfiq-adapter/blob/main/tests/Fixtures/Scheduler/locking.json)
 contains seven schedules in one document: omitted options, each flag enabled
 independently, both flags with a custom expiration, explicit disabled flags,
-expiration without flags, and the one-minute minimum. Parser assertions check
+overlap protection with a custom expiration, and the one-minute minimum. Parser assertions check
 each schedule's own values, order, and 60-minute default where expiration is
 omitted, including after a schedule with custom options.
 
@@ -129,6 +131,7 @@ aggregation of multiple schema errors into a single configuration failure.
 | `invalid-timezone.json`, `null-timezone.json`, `empty-timezone.json` | The time zone is unknown, explicitly null, or empty. |
 | `without-overlapping-is-string.json`, `on-one-server-is-null.json` | Lock flags are a string or null instead of booleans. |
 | `overlap-expiry-is-zero.json`, `overlap-expiry-is-float.json` | Lock expiration is zero or a floating-point number. |
+| `overlap-expiry-without-protection.json`, `overlap-expiry-with-disabled-protection.json` | Explicit expiration without `withoutOverlapping: true`, including when `onOneServer` is enabled. |
 | `multiple-invalid-lock-options.json` | All three lock options are invalid; the parser reports all three fields. |
 | `duplicate-ids.json` | Two schedules use the same identifier. |
 | `unknown-root-field.json`, `unknown-task-field.json` | The root or a task contains an unrecognized field. |
