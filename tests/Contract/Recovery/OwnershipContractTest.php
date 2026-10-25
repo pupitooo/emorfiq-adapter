@@ -4,31 +4,34 @@ declare(strict_types=1);
 
 namespace Tests\Contract\Recovery;
 
-use Closure;
 use Tests\Support\Recovery\Claim;
 use Tests\Support\Recovery\RecoveryAssertions as A;
+use Tests\Support\Recovery\RecoveryCase;
 use Tests\Support\Recovery\RecoveryHarness;
 
 final readonly class OwnershipContractTest
 {
     /**
-     * @return list<Closure(RecoveryHarness): void>
+     * @return list<RecoveryCase>
      */
     public function cases(): array
     {
         return [
-            $this->acceptsCompletionAtDeadline(...),
-            $this->acceptsCompletionAfterDeadlineWithoutRecovery(...),
-            $this->acceptsLateSuccessAndPreservesAbandonment(...),
-            $this->acceptsLateFailureAndPreservesAbandonment(...),
-            $this->rejectsWrongTokenBeforeAndAfterRecovery(...),
-            $this->keepsConfirmedResultsImmutable(...),
-            $this->acceptsCompletionAfterDatabaseLockWait(...),
-            $this->preservesAbandonmentWhenRecoveryWinsCompletionRace(...),
-            $this->avoidsAbandonmentWhenCompletionWinsRecoveryRace(...),
+            new RecoveryCase($this->acceptsCompletionAtDeadline(...)),
+            new RecoveryCase($this->acceptsCompletionAfterDeadlineWithoutRecovery(...)),
+            new RecoveryCase($this->acceptsLateSuccessAndPreservesAbandonment(...)),
+            new RecoveryCase($this->acceptsLateFailureAndPreservesAbandonment(...)),
+            new RecoveryCase($this->rejectsWrongTokenBeforeAndAfterRecovery(...)),
+            new RecoveryCase($this->keepsConfirmedResultsImmutable(...)),
+            new RecoveryCase($this->acceptsCompletionAfterDatabaseLockWait(...)),
+            new RecoveryCase($this->preservesAbandonmentWhenRecoveryWinsCompletionRace(...)),
+            new RecoveryCase($this->avoidsAbandonmentWhenCompletionWinsRecoveryRace(...)),
         ];
     }
 
+    /**
+     * @throws \Exception
+     */
     private function acceptsCompletionAtDeadline(RecoveryHarness $h): void
     {
         $claim = A::claimed($h->claim('sync', 0));
@@ -43,6 +46,9 @@ final readonly class OwnershipContractTest
         A::same(0, $h->recover('sync'));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function acceptsCompletionAfterDeadlineWithoutRecovery(RecoveryHarness $h): void
     {
         $claim = A::claimed($h->claim('sync', 0));
@@ -55,6 +61,9 @@ final readonly class OwnershipContractTest
         A::same(0, $h->recover('sync'));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function acceptsLateSuccessAndPreservesAbandonment(RecoveryHarness $h): void
     {
         $claim = A::claimed($h->claim('sync', 0));
@@ -71,6 +80,9 @@ final readonly class OwnershipContractTest
         A::same(300, $run->leaseExpiresAt);
     }
 
+    /**
+     * @throws \Exception
+     */
     private function acceptsLateFailureAndPreservesAbandonment(RecoveryHarness $h): void
     {
         $claim = A::claimed($h->claim('sync', 0));
@@ -86,6 +98,9 @@ final readonly class OwnershipContractTest
         A::same(true, $run->error !== null && $run->error !== '');
     }
 
+    /**
+     * @throws \Exception
+     */
     private function rejectsWrongTokenBeforeAndAfterRecovery(RecoveryHarness $h): void
     {
         $claim = A::claimed($h->claim('sync', 0));
@@ -100,6 +115,9 @@ final readonly class OwnershipContractTest
         A::same(300, $h->record($claim)->abandonedAt);
     }
 
+    /**
+     * @throws \Exception
+     */
     private function keepsConfirmedResultsImmutable(RecoveryHarness $h): void
     {
         foreach ([true, false] as $success) {
@@ -116,6 +134,9 @@ final readonly class OwnershipContractTest
         }
     }
 
+    /**
+     * @throws \Exception
+     */
     private function acceptsCompletionAfterDatabaseLockWait(RecoveryHarness $h): void
     {
         $claim = A::claimed($h->claim('sync', 0));
@@ -126,6 +147,9 @@ final readonly class OwnershipContractTest
         A::same(null, $h->record($claim)->abandonedAt);
     }
 
+    /**
+     * @throws \Exception
+     */
     private function preservesAbandonmentWhenRecoveryWinsCompletionRace(RecoveryHarness $h): void
     {
         $claim = A::claimed($h->claim('sync', 0));
@@ -137,6 +161,9 @@ final readonly class OwnershipContractTest
         A::same(0, $h->recover('sync'));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function avoidsAbandonmentWhenCompletionWinsRecoveryRace(RecoveryHarness $h): void
     {
         $claim = A::claimed($h->claim('sync', 0));

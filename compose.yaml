@@ -8,7 +8,7 @@ x-runtime: &runtime
   volumes:
     - runtime:/app/storage
   restart: unless-stopped
-  environment:
+  environment: &database-environment
     DATABASE_DSN: ${DATABASE_DSN:-pgsql:host=postgres;port=5432;dbname=emorfiq}
     DATABASE_USER: ${DATABASE_USER:-emorfiq}
     DATABASE_PASSWORD: ${DATABASE_PASSWORD:-${POSTGRES_PASSWORD:-emorfiq_local_dev}}
@@ -57,9 +57,7 @@ services:
   web:
     <<: *runtime
     environment:
-      DATABASE_DSN: ${DATABASE_DSN:-pgsql:host=postgres;port=5432;dbname=emorfiq}
-      DATABASE_USER: ${DATABASE_USER:-emorfiq}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-${POSTGRES_PASSWORD:-emorfiq_local_dev}}
+      <<: *database-environment
       PHP_CLI_SERVER_WORKERS: "4"
     ports:
       - "127.0.0.1:${APP_PORT:-8088}:8080"

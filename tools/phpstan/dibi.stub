@@ -1,0 +1,18 @@
+<?php
+
+namespace Dibi;
+
+class Exception extends \Exception {}
+
+// Dibi delegates these operations to its driver without declaring their exceptions.
+class Connection
+{
+    /** @throws Exception|\PDOException */
+    public function begin(?string $savepoint = null): void {}
+
+    /** @throws Exception|\PDOException */
+    public function commit(?string $savepoint = null): void {}
+
+    /** @throws Exception|\PDOException */
+    public function rollback(?string $savepoint = null): void {}
+}

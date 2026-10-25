@@ -30,7 +30,7 @@ flowchart TB
 
     subgraph Persistence["Persistence boundary"]
         Storage["TaskRunStorage<br/>Storage contract"]
-        Postgres["PostgresTaskRunStorage<br/>Transactional PDO storage"]
+        Postgres["PostgresTaskRunStorage<br/>Transactional Dibi storage"]
         Storage -.->|Implemented by| Postgres
     end
 
@@ -132,4 +132,4 @@ execution gates. `tests/Integration/Scheduler/ExecutionLifecycleTest.php` checks
 outcomes, infrastructure failures, and stable occurrence time. Both use
 `RecordingExecutionMutex`. The [storage suite](storage.md#storage-tests) verifies
 PostgreSQL persistence and races. See
-[Verification](verification.md) for database checks and the pending recovery harness.
+[Verification](verification.md) for database checks and recovery acceptance coverage.

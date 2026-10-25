@@ -61,3 +61,5 @@ Connection registration and transaction ownership are described in
 
 Run `make test-storage` for isolated PostgreSQL storage tests. See
 [Storage tests](../execution/storage.md#storage-tests) for coverage and isolation.
+
+For application SQL, see [Database queries](database-queries.md).

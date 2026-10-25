@@ -96,7 +96,7 @@ final readonly class PostgresStorageFailureTest
     {
         $connection = StorageDatabase::connect(CommitFaultConnection::class);
         $connection->exec('SET search_path TO ' . $db->schema . ', pg_catalog');
-        $storage = new PostgresTaskRunStorage($connection);
+        $storage = new PostgresTaskRunStorage(PostgresConnectionFactory::wrap($connection));
         try {
             $storage->reserve(
                 new ScheduleDefinition('sync', 'Task', '* * * * *', onOneServer: true),

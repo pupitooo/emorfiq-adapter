@@ -4,30 +4,33 @@ declare(strict_types=1);
 
 namespace Tests\Contract\Recovery;
 
-use Closure;
 use Tests\Support\Recovery\Claim;
 use Tests\Support\Recovery\RecoveryAssertions as A;
+use Tests\Support\Recovery\RecoveryCase;
 use Tests\Support\Recovery\RecoveryHarness;
 
 final readonly class RecoveryContractTest
 {
     /**
-     * @return list<Closure(RecoveryHarness): void>
+     * @return list<RecoveryCase>
      */
     public function cases(): array
     {
         return [
-            $this->abandonsExpiredRunAndAllowsLaterOccurrence(...),
-            $this->recoversBeforeClaimingNextOccurrence(...),
-            $this->keepsAbandonedOccurrenceReserved(...),
-            $this->leavesLiveLeasesAndOtherSchedulesUntouched(...),
-            $this->keepsRecoveryIdempotentAndPreservesHistory(...),
-            $this->ignoresCompletedRunsDuringRecovery(...),
-            $this->choosesOneWinnerDuringConcurrentRecoveryAndClaim(...),
-            $this->acceptsLateCompletionWithoutChangingReplacement(...),
+            new RecoveryCase($this->abandonsExpiredRunAndAllowsLaterOccurrence(...)),
+            new RecoveryCase($this->recoversBeforeClaimingNextOccurrence(...)),
+            new RecoveryCase($this->keepsAbandonedOccurrenceReserved(...)),
+            new RecoveryCase($this->leavesLiveLeasesAndOtherSchedulesUntouched(...)),
+            new RecoveryCase($this->keepsRecoveryIdempotentAndPreservesHistory(...)),
+            new RecoveryCase($this->ignoresCompletedRunsDuringRecovery(...)),
+            new RecoveryCase($this->choosesOneWinnerDuringConcurrentRecoveryAndClaim(...)),
+            new RecoveryCase($this->acceptsLateCompletionWithoutChangingReplacement(...)),
         ];
     }
 
+    /**
+     * @throws \Exception
+     */
     private function abandonsExpiredRunAndAllowsLaterOccurrence(RecoveryHarness $h): void
     {
         $old = A::claimed($h->claim('sync', 0));
@@ -40,6 +43,9 @@ final readonly class RecoveryContractTest
         A::claimed($h->claim('sync', 360));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function recoversBeforeClaimingNextOccurrence(RecoveryHarness $h): void
     {
         $old = A::claimed($h->claim('sync', 0));
@@ -52,6 +58,9 @@ final readonly class RecoveryContractTest
         A::same(2, count($h->runs('sync')));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function keepsAbandonedOccurrenceReserved(RecoveryHarness $h): void
     {
         $old = A::claimed($h->claim('sync', 0));
@@ -62,6 +71,9 @@ final readonly class RecoveryContractTest
         A::same(1, count($h->runs('sync')));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function leavesLiveLeasesAndOtherSchedulesUntouched(RecoveryHarness $h): void
     {
         $old = A::claimed($h->claim('old', 0));
@@ -74,6 +86,9 @@ final readonly class RecoveryContractTest
         A::same(1, $h->recover('old'));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function keepsRecoveryIdempotentAndPreservesHistory(RecoveryHarness $h): void
     {
         $old = A::claimed($h->claim('sync', 0));
@@ -89,6 +104,9 @@ final readonly class RecoveryContractTest
         A::same(1, count($h->runs('sync')));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function ignoresCompletedRunsDuringRecovery(RecoveryHarness $h): void
     {
         foreach ([true, false] as $success) {
@@ -103,6 +121,9 @@ final readonly class RecoveryContractTest
         A::same('failed', A::onlyRun($h, 'failure')->status);
     }
 
+    /**
+     * @throws \Exception
+     */
     private function choosesOneWinnerDuringConcurrentRecoveryAndClaim(RecoveryHarness $h): void
     {
         $old = A::claimed($h->claim('sync', 0));
@@ -112,6 +133,9 @@ final readonly class RecoveryContractTest
         A::same(2, count($h->runs('sync')));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function acceptsLateCompletionWithoutChangingReplacement(RecoveryHarness $h): void
     {
         $old = A::claimed($h->claim('sync', 0));

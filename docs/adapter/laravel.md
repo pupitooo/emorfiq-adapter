@@ -128,9 +128,9 @@ it does not receive Laravel's standard cache-backed mutex setup automatically.
 When `withoutOverlapping` is enabled, `filtersPass()` also checks for an existing
 lock. `event.run()` then attempts acquisition, covering a competing execution
 that starts between those checks.
-The current [mutex placeholders](../configuration/concurrency.md) throw
-`Not Implemented` when lock operations are requested. Such errors take the
-infrastructure-failure path in **Handle task outcome**.
+The [coordinated mutexes](../execution/mutex-layers.md) share one committed
+reservation through `ExecutionCoordinator` and PostgreSQL storage. Storage
+failures take the infrastructure-failure path in **Handle task outcome**.
 
 ### Task invocation and logging
 

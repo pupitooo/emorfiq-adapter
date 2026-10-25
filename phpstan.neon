@@ -15,14 +15,18 @@ parameters:
                 App\Scheduler\Infrastructure\Database\PostgresRunTransaction::reserve: 0
                 App\Scheduler\Infrastructure\Database\PostgresRunTransaction::execute: 0
                 Tests\Support\Storage\StorageTestRunner::run: 0
+                # Contract callbacks run inside the acceptance runner's failure boundary.
+                Tests\Support\Recovery\RecoveryCase::__construct: 0
                 Tests\Integration\Storage\PostgresStorageFailureTest::fails: 0
+    stubFiles:
+        - tools/phpstan/dibi.stub
     level: max
     phpVersion: 80500
     paths:
         - app
         - bin
         - config
-        - tools/log-viewer
+        - tools/adapter-ui
         - tests
         - ecs.php
     tmpDir: /tmp/emorfiq-phpstan

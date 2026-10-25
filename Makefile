@@ -2,7 +2,7 @@
 
 up:
 	@docker compose up -d --build --wait
-	@printf 'Log viewer: http://%s/\n' "$$(docker compose port web 8080)"
+	@printf 'Adapter UI: http://%s/\n' "$$(docker compose port web 8080)"
 	@printf 'Adminer: http://%s/\n' "$$(docker compose port adminer 8080)"
 
 down:
@@ -40,6 +40,7 @@ test-storage:
 	@docker compose run --rm --no-deps -T check composer test:storage
 
 test-recovery:
+	@docker compose up -d --wait postgres
 	@docker compose build check
 	@docker compose run --rm --no-deps -T check composer test:recovery
 

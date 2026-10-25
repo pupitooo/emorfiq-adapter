@@ -14,11 +14,11 @@ RUN composer install --no-dev --no-scripts --prefer-dist --no-interaction
 COPY app /app/app
 COPY bin /app/bin
 COPY config /app/config
-COPY tools/log-viewer /app/tools/log-viewer
+COPY tools/adapter-ui /app/tools/adapter-ui
 COPY docker/crontab /app/docker/crontab
 RUN mkdir -p storage/logs && chown -R www-data:www-data storage
 USER www-data
-CMD ["php", "-S", "0.0.0.0:8080", "-t", "tools/log-viewer/public", "tools/log-viewer/public/router.php"]
+CMD ["php", "-S", "0.0.0.0:8080", "-t", "tools/adapter-ui/public", "tools/adapter-ui/public/router.php"]
 
 FROM base AS tools
 RUN composer install --no-scripts --prefer-dist --no-interaction

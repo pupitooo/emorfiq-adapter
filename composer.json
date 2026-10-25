@@ -6,6 +6,7 @@
         "php": "~8.5.0",
         "ext-pdo": "*",
         "ext-pdo_pgsql": "*",
+        "dibi/dibi": "^5.0",
         "dragonmantank/cron-expression": "^3.6",
         "illuminate/console": "^13.0",
         "illuminate/container": "^13.0",
@@ -27,7 +28,7 @@
     "autoload": {
         "psr-4": {
             "App\\": "app/",
-            "DevTools\\LogViewer\\": "tools/log-viewer/src/"
+            "DevTools\\AdapterUi\\": "tools/adapter-ui/src/"
         }
     },
     "autoload-dev": {

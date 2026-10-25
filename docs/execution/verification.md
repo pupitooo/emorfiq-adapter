@@ -4,16 +4,16 @@
 
 Schema migrations, production coordination, runner integration, and PostgreSQL
 storage are implemented. `make test-storage` exercises production storage in
-isolated schemas, including concurrent PHP workers. The broader worker-crash
-harness adapter remains pending; its acceptance runner still fails explicitly.
-Those scenarios remain requirements rather than executed end-to-end evidence.
+isolated schemas, including concurrent PHP workers. `make test-recovery` runs all
+43 acceptance scenarios through production coordination, the Laravel runner,
+real worker processes, and receiver fixtures.
 
 | Command | Scope | Current result |
 | --- | --- | --- |
 | `make check` | PHPStan, ECS, and application tests | Must pass; required in CI. |
 | `make test-db` | Migrations 001 and 002, upgrade history, and partial indexes | Must pass; required in CI. |
-| `make test-storage` | 21 production PostgreSQL storage scenarios, including races and commit failures | Must pass; required in CI. |
-| `make test-recovery` | 43 named acceptance scenarios | Intentionally red: production harness adapter is missing. |
+| `make test-storage` | 22 production PostgreSQL storage scenarios, including races and commit failures | Must pass; required in CI. |
+| `make test-recovery` | 43 named acceptance scenarios | Must pass; required in CI. |
 | `docker compose run --rm --no-deps -T check composer test:recovery:list` | List acceptance scenarios without executing them | Lists 43 scenarios; rebuild `check` after source changes. |
 
 `make test-db` streams the real migrations and SQL fixtures into an isolated
@@ -29,12 +29,34 @@ The [storage suite](storage.md#storage-tests) exercises transition SQL and races
 through production storage. Its database clock is controlled inside each isolated
 schema. It covers both commit orders for recovery and completion, waits crossing
 expiry, concurrent recovery/claims, rollback, and lost commit acknowledgement.
-It does not implement the worker-crash and external-receiver harness below.
+Worker crashes and receiver boundaries are covered by the separate acceptance
+harness below.
 
-The acceptance runner creates a fresh `RecoveryHarness` per scenario and cleans
-it up after both success and failure. The pending factory throws explicitly;
-failures are neither skips nor successes, and the command exits nonzero. Do not
-substitute an in-memory protocol model to make these scenarios green.
+The acceptance runner creates a fresh `PostgresRecoveryHarness` per scenario.
+It applies the real migrations in a random schema, then stops workers and drops
+the schema after both success and failure. The runner releases cyclic Dibi
+references between scenarios so their PostgreSQL sessions close promptly.
+Failures are reported as failures and make the command exit nonzero.
+
+## Harness implementation
+
+`tests/recovery-worker.php` runs production `ExecutionCoordinator` operations or
+the full `LaravelAdapter` with both coordinated mutexes and a recording task.
+The task and resolver persist counters and effects through an independent
+connection, so observations survive worker death. A line protocol pauses child
+processes at explicit barriers. The parent sends SIGKILL at crash boundaries;
+these paths cannot execute task exception handling or completion cleanup.
+
+Reservation rollback uses a temporary database constraint. Lost acknowledgement
+is injected after the reservation's real commit, leaving advisory read commits
+unaffected. Completion unavailability terminates only the owner's PostgreSQL
+backend. Row locks and commit barriers force both completion/recovery orders;
+clock changes do not depend on elapsed wall time.
+
+Receiver probes use separate connections and atomic SQL for idempotence and
+resource generations. A submitted request pauses in a separate receiver worker
+before applying its durable effect. These are test receivers, not guarantees
+about any external integration.
 
 ## Harness obligations
 
@@ -87,8 +109,9 @@ storage and clean up connections, workers, and schemas even on failure.
 
 ## Scenario coverage
 
-All 43 scenarios below exist under `tests/Contract/Recovery/`. They must be
-connected to the production harness before claiming runtime correctness.
+All 43 scenarios below run from `tests/Contract/Recovery/` against the production
+harness. Their scope is the fixed-expiration policy and the fixture boundaries
+described above.
 
 ### Reservation and indexes
 
@@ -160,24 +183,16 @@ See [scenario details](external-effects.md). Suite: `ExternalEffectsContractTest
 
 ## Production completion criteria
 
-The fixed-expiration policy and completion semantics are agreed. Remaining work
-is implementation, not a pending decision about renewal or periodic recovery:
+The production coordinator, PostgreSQL storage, Laravel lifecycle integration,
+and acceptance harness are implemented. CI requires `make check`, `make test-db`,
+`make test-storage`, `make test-recovery`, and `make docs-check`.
 
-1. Implement short transactional claims, original-owner completion, explicit
-   recovery attribution, token validation, and conflict/error classification.
-   Add the PostgreSQL driver, connection configuration, and dependency injection.
-2. Integrate one run lifecycle with `LaravelAdapter`, `TaskExecutor`,
-   `SchedulingMutex`, and `EventMutex`. Two mutex callbacks must not reserve two
-   unrelated rows. Late completion updates only its own run, preserving a
-   replacement's active reservation.
-3. Connect the production harness, real sessions, controlled workers, clock, and
-   fault injection. Run all 43 acceptance scenarios, including both recovery and
-   completion race orders. Verify actual database-time SQL after lock waits.
-4. Once implemented, require `make test-recovery` in CI and the completion gate.
-   Replace obsolete `Not Implemented` assertions and update runtime status docs.
-5. Validate real external integrations where effects require idempotence or
-   receiver-side concurrency protection; scheduler indexes cannot provide an
-   unconditional exactly-once effects guarantee.
+The acceptance suite verifies committed reservations before task resolution,
+owner-checked late completion, recovery attribution, concurrent claims, both
+completion/recovery orders, process crashes, and uncertain database outcomes.
+Receiver fixtures demonstrate idempotence and fencing boundaries. Real external
+integrations still need their own validation where these guarantees matter;
+scheduler indexes cannot guarantee exactly-once external effects.
 
 Renewal, periodic recovery sweeps, task ownership-loss signals, process
 termination, automatic retries, catch-up, deduplication-history deletion, overlap

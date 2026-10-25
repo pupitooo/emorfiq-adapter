@@ -4,29 +4,32 @@ declare(strict_types=1);
 
 namespace Tests\Contract\Recovery;
 
-use Closure;
 use Tests\Support\Recovery\RecoveryAssertions as A;
+use Tests\Support\Recovery\RecoveryCase;
 use Tests\Support\Recovery\RecoveryHarness;
 
 final readonly class ExternalEffectsContractTest
 {
     /**
-     * @return list<Closure(RecoveryHarness): void>
+     * @return list<RecoveryCase>
      */
     public function cases(): array
     {
         return [
-            $this->demonstratesSurvivingWorkerCanActAfterAbandonment(...),
-            $this->cannotCancelAlreadySubmittedExternalRequest(...),
-            $this->doesNotAutomaticallyCancelWorkerAfterExpiry(...),
-            $this->deduplicatesStableBusinessOperationKeysAtReceiver(...),
-            $this->demonstratesDifferentKeysDoNotDeduplicateEffects(...),
-            $this->rejectsOlderGenerationAfterReceiverObservesNewOwner(...),
-            $this->keepsFencingGenerationsIndependentForDifferentResources(...),
-            $this->demonstratesFencingCannotUndoEarlierAcceptedWrites(...),
+            new RecoveryCase($this->demonstratesSurvivingWorkerCanActAfterAbandonment(...)),
+            new RecoveryCase($this->cannotCancelAlreadySubmittedExternalRequest(...)),
+            new RecoveryCase($this->doesNotAutomaticallyCancelWorkerAfterExpiry(...)),
+            new RecoveryCase($this->deduplicatesStableBusinessOperationKeysAtReceiver(...)),
+            new RecoveryCase($this->demonstratesDifferentKeysDoNotDeduplicateEffects(...)),
+            new RecoveryCase($this->rejectsOlderGenerationAfterReceiverObservesNewOwner(...)),
+            new RecoveryCase($this->keepsFencingGenerationsIndependentForDifferentResources(...)),
+            new RecoveryCase($this->demonstratesFencingCannotUndoEarlierAcceptedWrites(...)),
         ];
     }
 
+    /**
+     * @throws \Exception
+     */
     private function demonstratesSurvivingWorkerCanActAfterAbandonment(RecoveryHarness $h): void
     {
         $old = A::claimed($h->claim('sync', 0));
@@ -40,6 +43,9 @@ final readonly class ExternalEffectsContractTest
         A::same(false, $h->finish($old));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function cannotCancelAlreadySubmittedExternalRequest(RecoveryHarness $h): void
     {
         $old = A::claimed($h->claim('sync', 0));
@@ -50,6 +56,9 @@ final readonly class ExternalEffectsContractTest
         A::same(1, $h->effectCount());
     }
 
+    /**
+     * @throws \Exception
+     */
     private function doesNotAutomaticallyCancelWorkerAfterExpiry(RecoveryHarness $h): void
     {
         $old = A::claimed($h->claim('sync', 0));
@@ -62,6 +71,9 @@ final readonly class ExternalEffectsContractTest
         A::same(300, $h->record($old)->abandonedAt);
     }
 
+    /**
+     * @throws \Exception
+     */
     private function deduplicatesStableBusinessOperationKeysAtReceiver(RecoveryHarness $h): void
     {
         A::same(true, $h->applyIdempotentEffect('payment-42'));
@@ -69,6 +81,9 @@ final readonly class ExternalEffectsContractTest
         A::same(1, $h->effectCount());
     }
 
+    /**
+     * @throws \Exception
+     */
     private function demonstratesDifferentKeysDoNotDeduplicateEffects(RecoveryHarness $h): void
     {
         A::same(true, $h->applyIdempotentEffect('occurrence-10:00'));
@@ -76,6 +91,9 @@ final readonly class ExternalEffectsContractTest
         A::same(2, $h->effectCount());
     }
 
+    /**
+     * @throws \Exception
+     */
     private function rejectsOlderGenerationAfterReceiverObservesNewOwner(RecoveryHarness $h): void
     {
         A::same(true, $h->applyFencedEffect('inventory', 8));
@@ -83,6 +101,9 @@ final readonly class ExternalEffectsContractTest
         A::same(1, $h->effectCount());
     }
 
+    /**
+     * @throws \Exception
+     */
     private function keepsFencingGenerationsIndependentForDifferentResources(RecoveryHarness $h): void
     {
         A::same(true, $h->applyFencedEffect('first', 8));
@@ -90,6 +111,9 @@ final readonly class ExternalEffectsContractTest
         A::same(2, $h->effectCount());
     }
 
+    /**
+     * @throws \Exception
+     */
     private function demonstratesFencingCannotUndoEarlierAcceptedWrites(RecoveryHarness $h): void
     {
         A::same(true, $h->applyFencedEffect('inventory', 7));
