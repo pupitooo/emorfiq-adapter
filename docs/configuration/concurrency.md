@@ -45,7 +45,8 @@ while its lock is held. They are not queued or retried.
 
 The adapter passes `overlapExpiresAfterMinutes` to Illuminate's
 `withoutOverlapping()` method. Normal completion and task failure release the
-execution lock. Expiration allows eventual recovery if a process cannot release
+execution lock. The duration is fixed at acquisition and is not renewed.
+Expiration allows eventual recovery if a process cannot release
 it. Set it longer than the expected maximum execution time: expiration can allow
 another run even while the original process is still running. It is not a task
 timeout and does not terminate the original execution.
@@ -66,7 +67,8 @@ The existing unique `id` becomes the callback event name and therefore identifie
 its mutexes. Different IDs for the same task class have independent locks. All
 servers must use consistent IDs and a shared atomic locking backend for server
 coordination. `overlapExpiresAfterMinutes` configures only the execution lock;
-it does not change the scheduling lock lifetime.
+it does not change the scheduling lock lifetime. With `onOneServer` alone,
+the database design has no execution-lock expiration and requires no renewal.
 
 ## Implementation status
 
@@ -101,7 +103,6 @@ as a separate capability requiring shared cache storage.
 [Crunz](https://github.com/crunzphp/crunz#parallelism-and-the-locking-mechanism)
 accepts a Symfony Lock store per event. Its
 [event implementation](https://github.com/crunzphp/crunz/blob/master/src/Event.php)
-also supports refreshing locks while work is running. Those are useful inputs
-for the planned locking implementation; backend selection and renewal are not
-JSON options in the current format. Application service configuration remains
-responsible for infrastructure dependencies.
+also supports refreshing locks while work is running. Renewal is a deferred
+extension here. Backend selection is not a JSON option; application service
+configuration remains responsible for infrastructure dependencies.

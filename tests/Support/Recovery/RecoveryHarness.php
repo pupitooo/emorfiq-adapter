@@ -8,7 +8,7 @@ use Exception;
 
 /**
  * Test port for production coordination, real database sessions, and worker fault injection.
- * Times are seconds relative to 2026-10-26 10:00:00 UTC; leases last 300 seconds.
+ * Times are seconds relative to 2026-10-26 10:00:00 UTC; overlap locks last 300 seconds without renewal.
  * Each factory call must provide isolated storage and a shared controllable ownership clock.
  * See docs/execution/verification.md for barriers, observation, and receiver requirements.
  */
@@ -30,9 +30,7 @@ interface RecoveryHarness
         bool $withoutOverlapping = true,
     ): ?Claim;
 
-    public function recover(string $schedule): int;
-
-    public function renew(Claim $claim): bool;
+    public function recover(string $schedule, string $recoveredBy = 'recovery-worker'): int;
 
     public function finish(Claim $claim, bool $succeeded = true): bool;
 
@@ -54,14 +52,15 @@ interface RecoveryHarness
     public function raceRecoveryAndClaim(string $schedule, int $minute): array;
 
     /**
-     * Run real concurrent statements across expiry with controlled lock order.
-     * renewalWins=true: valid renewal commits first; recovery rechecks the extended lease.
-     * renewalWins=false: recovery commits first; waiting renewal cannot revive the row.
+     * At second 300, order two real sessions completing and recovering the same run.
+     * completionWins=true: recovery rechecks the completed row and leaves audit fields empty.
+     * completionWins=false: completion succeeds after abandonment and retains recovery-worker attribution.
      */
-    public function raceRenewalAndRecovery(Claim $claim, bool $renewalWins): void;
+    public function raceCompletionAndRecovery(Claim $claim, bool $completionWins): void;
 
     /**
-     * Waiting completion must check time again after crossing the lease deadline.
+     * Complete at second 301 after waiting on a row lock across expiry, without intervening recovery.
+     * Expiry alone does not reject the original owner's result.
      */
     public function finishAfterWaitingPastDeadline(Claim $claim): bool;
 
@@ -71,8 +70,8 @@ interface RecoveryHarness
     public function execute(string $schedule, int $minute, ExecutionFault $fault = ExecutionFault::None): void;
 
     /**
-     * Keep the recording task blocked while its supervisor renews; sweep at the original deadline.
-     * Advance the controlled clock to duration, release the task, and observe completion.
+     * Block the real task without renewal; recover at second 300 as recovery-worker.
+     * Release the task at duration and persist its result while retaining abandonment history.
      */
     public function executeLongTask(string $schedule, int $minute, int $duration): void;
 
@@ -91,12 +90,10 @@ interface RecoveryHarness
 
     public function disconnectOwner(Claim $claim): void;
 
-    public function ownershipLossSignalled(Claim $claim): bool;
-
     /**
-     * Resume a paused fixture worker; arbitrary tasks can ignore lost ownership.
+     * Resume a paused fixture worker without automatic cancellation or ownership checks.
      */
-    public function resumeEffect(Claim $claim, bool $cooperative): bool;
+    public function resumeEffect(Claim $claim): bool;
 
     /**
      * Pause an external request after submission, before its durable effect.

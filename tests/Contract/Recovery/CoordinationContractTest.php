@@ -48,8 +48,14 @@ final readonly class CoordinationContractTest
 
     private function allowsLaterOccurrenceWithOnlySingleServerProtection(RecoveryHarness $h): void
     {
-        A::claimed($h->claim('sync', 0, withoutOverlapping: false));
-        A::claimed($h->claim('sync', 60, withoutOverlapping: false));
+        $claim = A::claimed($h->claim('sync', 0, withoutOverlapping: false));
+        A::same(null, $h->record($claim)->leaseExpiresAt);
+        $h->at(600);
+        A::same(0, $h->recover('sync'));
+        A::same('in_progress', $h->record($claim)->status);
+        A::claimed($h->claim('sync', 600, withoutOverlapping: false));
+        A::same(null, $h->claim('sync', 0, withoutOverlapping: false));
+        A::same(true, $h->finish($claim));
         A::same(2, count($h->runs('sync')));
     }
 

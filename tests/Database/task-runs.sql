@@ -14,7 +14,8 @@ CREATE FUNCTION insert_run(
         schedule, '2026-10-26 10:00:00+00'::timestamptz + minute * interval '1 minute',
         'RecordingTask', '* * * * *', 'UTC', overlap, 5, one_server,
         state, gen_random_uuid(), clock_timestamp(),
-        clock_timestamp() + CASE WHEN expired THEN interval '-1 minute' ELSE interval '5 minutes' END
+        CASE WHEN overlap THEN clock_timestamp() +
+            CASE WHEN expired THEN interval '-1 minute' ELSE interval '5 minutes' END END
     ) RETURNING id;
 $$;
 
@@ -33,6 +34,30 @@ BEGIN
         RETURN;
     END;
     RAISE EXCEPTION 'Expected conflict on %, insert succeeded', expected_index;
+END;
+$$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM task_runs WHERE schedule_id = 'legacy-abandoned'
+          AND abandoned_at = '2026-10-26 10:06:00+00' AND abandoned_by = 'legacy:unknown'
+          AND finished_at IS NULL AND lease_expires_at = '2026-10-26 10:05:00+00'
+    ) THEN
+        RAISE EXCEPTION 'Migration must preserve legacy recovery time separately from completion';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM task_runs WHERE schedule_id = 'legacy-success'
+          AND finished_at = '2026-10-26 10:01:00+00' AND abandoned_at IS NULL AND abandoned_by IS NULL
+    ) THEN
+        RAISE EXCEPTION 'Migration must preserve confirmed legacy completion';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM task_runs WHERE schedule_id = 'legacy-single-only' AND lease_expires_at IS NULL
+    ) THEN
+        RAISE EXCEPTION 'Occurrence-only reservations must not acquire an execution expiry';
+    END IF;
+    RAISE NOTICE 'PASS upgrade preserves legacy completion and recovery history and clears irrelevant expiry';
 END;
 $$;
 
@@ -74,11 +99,18 @@ DO $$
 DECLARE
     changed integer;
 BEGIN
-    UPDATE task_runs SET status = 'abandoned', finished_at = clock_timestamp()
+    UPDATE task_runs
+    SET status = 'abandoned', abandoned_at = clock_timestamp(), abandoned_by = 'schema-test:recovery'
     WHERE schedule_id = 'expired' AND status = 'in_progress' AND lease_expires_at <= clock_timestamp();
     GET DIAGNOSTICS changed = ROW_COUNT;
     IF changed <> 1 THEN
         RAISE EXCEPTION 'Expected one expired transition, got %', changed;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM task_runs WHERE schedule_id = 'expired' AND finished_at IS NULL
+          AND abandoned_at IS NOT NULL AND abandoned_by = 'schema-test:recovery'
+    ) THEN
+        RAISE EXCEPTION 'Recovery must record its actor and time without asserting completion';
     END IF;
     PERFORM insert_run('expired', 1, true, true);
     PERFORM expect_conflict('expired', 0, true, false, 'task_runs_occurrence');
@@ -91,6 +123,9 @@ BEGIN
     PERFORM insert_run('single-only', 0, true, false);
     PERFORM insert_run('single-only', 1, true, false);
     PERFORM expect_conflict('single-only', 0, true, false, 'task_runs_occurrence');
+    IF EXISTS (SELECT 1 FROM task_runs WHERE schedule_id = 'single-only' AND lease_expires_at IS NOT NULL) THEN
+        RAISE EXCEPTION 'Single-server scheduling must not introduce an overlap deadline';
+    END IF;
     RAISE NOTICE 'PASS single-server protection permits overlapping different occurrences';
 END;
 $$;
@@ -143,6 +178,56 @@ BEGIN
         RAISE EXCEPTION 'Recovery must retain history';
     END IF;
     RAISE NOTICE 'PASS repeated recovery ignores terminal/live rows and retains history';
+END;
+$$;
+
+DO $$
+DECLARE
+    recovered_at timestamptz;
+    replacement_id bigint;
+BEGIN
+    SELECT abandoned_at INTO STRICT recovered_at FROM task_runs
+    WHERE schedule_id = 'expired' AND status = 'abandoned';
+    SELECT id INTO STRICT replacement_id FROM task_runs
+    WHERE schedule_id = 'expired' AND status = 'in_progress';
+    UPDATE task_runs SET status = 'succeeded', finished_at = clock_timestamp()
+    WHERE schedule_id = 'expired' AND status = 'abandoned';
+    IF NOT EXISTS (
+        SELECT 1 FROM task_runs WHERE schedule_id = 'expired' AND status = 'succeeded'
+          AND finished_at IS NOT NULL AND abandoned_at = recovered_at AND abandoned_by = 'schema-test:recovery'
+    ) THEN
+        RAISE EXCEPTION 'Late success must retain abandonment attribution';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM task_runs WHERE id = replacement_id AND status = 'in_progress') THEN
+        RAISE EXCEPTION 'Late completion must leave replacement active';
+    END IF;
+    PERFORM expect_conflict('expired', 2, true, true, 'task_runs_active_schedule');
+    PERFORM expect_conflict('expired', 0, true, false, 'task_runs_occurrence');
+    RAISE NOTICE 'PASS late success retains recovery history and both replacement and occurrence protection';
+END;
+$$;
+
+DO $$
+DECLARE
+    original_id bigint;
+BEGIN
+    original_id := insert_run('late-failure', 0, true, true, 'in_progress', true);
+    UPDATE task_runs
+    SET status = 'abandoned', abandoned_at = clock_timestamp(), abandoned_by = 'schema-test:recovery'
+    WHERE id = original_id;
+    PERFORM insert_run('late-failure', 1, true, true);
+    UPDATE task_runs SET status = 'failed', finished_at = clock_timestamp(), error_message = 'Task exception'
+    WHERE id = original_id;
+    IF NOT EXISTS (
+        SELECT 1 FROM task_runs WHERE id = original_id AND status = 'failed'
+          AND finished_at IS NOT NULL AND abandoned_at IS NOT NULL
+          AND abandoned_by = 'schema-test:recovery' AND error_message = 'Task exception'
+    ) THEN
+        RAISE EXCEPTION 'Late failure must retain its diagnostic and recovery history';
+    END IF;
+    PERFORM expect_conflict('late-failure', 2, true, true, 'task_runs_active_schedule');
+    PERFORM expect_conflict('late-failure', 0, true, false, 'task_runs_occurrence');
+    RAISE NOTICE 'PASS late failure retains diagnostic and recovery history without unlocking replacement';
 END;
 $$;
 

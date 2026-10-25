@@ -24,7 +24,7 @@ final readonly class RecoveryContractTest
             $this->keepsRecoveryIdempotentAndPreservesHistory(...),
             $this->ignoresCompletedRunsDuringRecovery(...),
             $this->choosesOneWinnerDuringConcurrentRecoveryAndClaim(...),
-            $this->rejectsLateOwnerWithoutChangingReplacement(...),
+            $this->acceptsLateCompletionWithoutChangingReplacement(...),
         ];
     }
 
@@ -34,7 +34,9 @@ final readonly class RecoveryContractTest
         $h->at(360);
         A::same(1, $h->recover('sync'));
         A::same('abandoned', $h->record($old)->status);
-        A::same(360, $h->record($old)->finishedAt);
+        A::same(null, $h->record($old)->finishedAt);
+        A::same(360, $h->record($old)->abandonedAt);
+        A::same('recovery-worker', $h->record($old)->abandonedBy);
         A::claimed($h->claim('sync', 360));
     }
 
@@ -44,6 +46,9 @@ final readonly class RecoveryContractTest
         $h->at(360);
         A::claimed($h->claim('sync', 360));
         A::same('abandoned', $h->record($old)->status);
+        A::same(null, $h->record($old)->finishedAt);
+        A::same(360, $h->record($old)->abandonedAt);
+        A::same('claim-worker', $h->record($old)->abandonedBy);
         A::same(2, count($h->runs('sync')));
     }
 
@@ -76,9 +81,11 @@ final readonly class RecoveryContractTest
         A::same(1, $h->recover('sync'));
         $record = $h->record($old);
         $h->at(400);
-        A::same(0, $h->recover('sync'));
+        A::same(0, $h->recover('sync', 'another-recovery-worker'));
         A::same($record->status, $h->record($old)->status);
-        A::same($record->finishedAt, $h->record($old)->finishedAt);
+        A::same(null, $h->record($old)->finishedAt);
+        A::same($record->abandonedAt, $h->record($old)->abandonedAt);
+        A::same($record->abandonedBy, $h->record($old)->abandonedBy);
         A::same(1, count($h->runs('sync')));
     }
 
@@ -105,17 +112,24 @@ final readonly class RecoveryContractTest
         A::same(2, count($h->runs('sync')));
     }
 
-    private function rejectsLateOwnerWithoutChangingReplacement(RecoveryHarness $h): void
+    private function acceptsLateCompletionWithoutChangingReplacement(RecoveryHarness $h): void
     {
         $old = A::claimed($h->claim('sync', 0));
         $h->at(300);
         $new = A::claimed($h->claim('sync', 300));
-        A::same(false, $h->renew($old));
-        A::same(false, $h->finish($old));
-        $forged = new Claim($new->id, $old->ownerToken);
-        A::same(false, $h->finish($forged));
-        A::same(false, $h->renew($forged));
-        A::same('abandoned', $h->record($old)->status);
-        A::same('in_progress', $h->record($new)->status);
+        $replacement = $h->record($new);
+        $h->at(360);
+        A::same(true, $h->finish($old));
+        A::same(false, $h->finish(new Claim($new->id, $old->ownerToken)));
+        A::same('succeeded', $h->record($old)->status);
+        A::same(300, $h->record($old)->abandonedAt);
+        A::same('claim-worker', $h->record($old)->abandonedBy);
+        A::same(360, $h->record($old)->finishedAt);
+        A::same($replacement->status, $h->record($new)->status);
+        A::same($replacement->leaseExpiresAt, $h->record($new)->leaseExpiresAt);
+        A::same(null, $h->record($new)->finishedAt);
+        A::same(null, $h->record($new)->abandonedAt);
+        A::same(0, $h->recover('sync'));
+        A::same(null, $h->claim('sync', 360));
     }
 }

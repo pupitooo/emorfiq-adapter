@@ -1,6 +1,6 @@
 # Ownership and external effects
 
-A lease authorizes a worker for a limited time. Expiring it or changing a row to
+An overlap lock protects a reservation for a fixed time. Expiring it or changing a row to
 `abandoned` cannot terminate that process, cancel an HTTP request, or undo its
 changes. This page defines task-level obligations outside the scheduler's
 reservation indexes. See [recovery](recovery.md) for the database lifecycle.
@@ -16,7 +16,7 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant B as New worker
     participant E as External API
-    A->>DB: Claim, lease until 10:05
+    A->>DB: Claim, overlap deadline 10:05
     A-xDB: Connection lost at 10:03
     A->>E: Existing request continues
     B->>DB: Recover at 10:06 and claim next occurrence
@@ -26,31 +26,21 @@ sequenceDiagram
     Note over A,E: Unique indexes do not stop these effects
 ```
 
-`withoutOverlapping` prevents multiple active protected reservations. After lease
-loss, it cannot unconditionally guarantee that only one physical process is
+`withoutOverlapping` prevents multiple active protected reservations. After lock
+expiry, it cannot unconditionally guarantee that only one physical process is
 still executing task code. An arbitrary uncooperative task can keep running.
 
-## Cooperative ownership checks
+## Deferred cancellation support
 
-A task that supports cancellation checks ownership before starting another
-operation. Failed renewal must be reported as lost or unconfirmed ownership,
-not treated as permission to keep working.
+The first version does not renew locks, signal ownership loss, or require task
+checkpoints. A worker can keep executing after lock expiry or recovery. An
+already submitted external request can also finish after abandonment.
 
-```mermaid
-sequenceDiagram
-    participant T as Cooperative task
-    participant C as Coordinator
-    participant DB as PostgreSQL
-    participant E as External API
-    C-xDB: Renewal cannot be confirmed
-    C-->>T: Ownership no longer confirmed
-    T->>T: Check cancellation before next operation
-    Note over T,E: Do not submit another request
-    E-->>T: An already submitted request may still complete
-```
-
-A check and an external write are separate actions: ownership may expire between
-them. Cooperative cancellation reduces the window but does not close it.
+Cooperative cancellation is a possible future extension. It would require an
+explicit task context or cancellation interface and a way to detect lost
+ownership during execution. It still could not cancel effects already accepted
+by an external system. Renewal and process supervision would require their own
+implementation; they are not prerequisites for fixed-expiration locks.
 
 ## Idempotent business operations
 
@@ -104,8 +94,9 @@ identity, generation allocation, and atomic enforcement protocol.
 ## Scope of verification
 
 Acceptance tests use controllable worker pauses and an external-effects probe to
-show that an abandoned worker can still act, and that a cooperative worker can
-stop. Receiver examples test duplicate-key and stale-generation behavior through
+show that an abandoned worker and an already submitted request can still act.
+They do not require automatic cancellation or renewal. Receiver examples test
+duplicate-key and stale-generation behavior through
 an explicit test port. They do not prove that a real payment API or other
 production receiver offers these guarantees. Each effectful task must verify
 its actual receiver integration before relying on it.
