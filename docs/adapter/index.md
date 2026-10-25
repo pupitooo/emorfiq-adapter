@@ -29,7 +29,7 @@ scheduler-provided mechanisms and application-owned orchestration:
 
 | Block | Responsibility |
 | --- | --- |
-| **[Build execution plan](laravel.md#build-execution-plan)** | The adapter owns configuration-to-event mapping; the scheduler supplies its plan and callback APIs. [Configuration loading](../configuration/loading.md) belongs to the application. |
+| **[Build execution plan](laravel.md#build-execution-plan)** | The adapter owns configuration-to-event mapping; the scheduler supplies its plan and callback APIs. Configuration loading belongs to the application; see [Configuration design](../configuration/loading.md). |
 | **[Select due tasks](laravel.md#select-due-tasks)** | Delegate cron, time-zone and due-time evaluation to the scheduler. The adapter calls selection and processes the results in configuration order. See [cron rules](../configuration/cron.md). |
 | **[Process due task](laravel.md#process-due-task)** | The adapter orchestrates checks; the scheduler supplies filter, mutex-gate and callback mechanics. The application supplies [lock services](../configuration/concurrency.md#implementation-status), and its executor invokes `Task::run()`. |
 | **[Handle task outcome](laravel.md#handle-task-outcome)** | The application owns lifecycle logging, task exception translation and the continue-or-abort policy. This uses our runner's [failure handling](../task-execution.md#failure-policy), rather than delegating it to the scheduler's CLI runner. |

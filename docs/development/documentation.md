@@ -28,7 +28,7 @@ in `docs/`. MkDocs reads them through
 Configuration, the README hook, and other documentation tooling live in
 `tools/docs/`, separately from content.
 
-The JSON reference and configuration loading rationale each have one canonical page.
+The JSON reference and configuration design rationale each have one canonical page.
 
 Keep the README focused on starting the application, starting the documentation,
 and a brief architecture overview. Link detailed topics to their own pages.

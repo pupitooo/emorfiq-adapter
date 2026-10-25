@@ -1,4 +1,4 @@
-# Configuration loading
+# Configuration design
 
 Configuration is loaded and validated before the adapter builds its execution
 plan. The JSON provider converts the file into typed, immutable application
@@ -67,11 +67,6 @@ justify replacing the JSON loader and its declarative validation.
   shared, language-neutral definition for validating the JSON input. PHP object
   mapping and scheduling-specific rules would still be needed. There is
   currently no requirement for that shared schema.
-- **Explicit reload:** useful if a long-running process must adopt configuration
-  changes without restarting. A reload would validate a complete new snapshot
-  and coordinate replacement of the execution plan. Reading the file on every
-  access would not by itself solve that coordination problem. Reloading is not
-  implemented by the current provider.
 
 ## Format and failure behavior
 

@@ -119,8 +119,8 @@ See [Task services](../task-services.md) for registration and dependencies,
 [LaravelAdapter execution conditions](../adapter/laravel.md#execution-conditions)
 for when tasks run.
 
-## Loading approach
+## Configuration design
 
-See [Configuration loading](loading.md) for the benefits and tradeoffs of typed
+See [Configuration design](loading.md) for the benefits and tradeoffs of typed
 configuration, declarative validation, and immutable snapshots, and the
 requirements that could justify a different source, shared schema, or reload policy.
