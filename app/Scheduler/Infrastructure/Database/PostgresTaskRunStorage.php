@@ -8,6 +8,7 @@ use App\Database\PostgresConnectionFactory;
 use App\Scheduler\Contract\TaskRunStorage;
 use App\Scheduler\Domain\RunClaim;
 use App\Scheduler\Domain\RunOutcome;
+use App\Scheduler\Domain\RunStatus;
 use App\Scheduler\Domain\ScheduleDefinition;
 use App\Scheduler\Exception\MutexStorageException;
 use DateTimeImmutable;
@@ -46,10 +47,10 @@ final readonly class PostgresTaskRunStorage implements TaskRunStorage
     {
         return $this->transaction->run(fn(): bool => $this->connection->fetchSingle(<<<'SQL'
             SELECT 1 FROM task_runs
-            WHERE schedule_id = %s AND without_overlapping AND status = 'in_progress'
+            WHERE schedule_id = %s AND without_overlapping AND status = %s
               AND lease_expires_at > clock_timestamp()
             SQL
-            , $scheduleId) !== null);
+            , $scheduleId, RunStatus::InProgress->value) !== null);
     }
 
     #[Override]
@@ -89,7 +90,7 @@ final readonly class PostgresTaskRunStorage implements TaskRunStorage
                 ],
                 $claim->id,
                 $claim->ownerToken,
-                ['in_progress', 'abandoned']
+                [RunStatus::InProgress->value, RunStatus::Abandoned->value]
             );
 
             return $this->connection->getAffectedRows() === 1;
@@ -110,18 +111,18 @@ final readonly class PostgresTaskRunStorage implements TaskRunStorage
         // Lock even currently live candidates: expiry can pass while waiting for their row locks.
         $this->connection->query(<<<'SQL'
             SELECT id FROM task_runs
-            WHERE schedule_id = %s AND without_overlapping AND status = 'in_progress'
+            WHERE schedule_id = %s AND without_overlapping AND status = %s
             ORDER BY id FOR UPDATE
             SQL
-            , $scheduleId);
+            , $scheduleId, RunStatus::InProgress->value);
         $this->connection->query(<<<'SQL'
             UPDATE task_runs
-            SET status = 'abandoned', abandoned_at = COALESCE(abandoned_at, clock_timestamp()),
+            SET status = %s, abandoned_at = COALESCE(abandoned_at, clock_timestamp()),
                 abandoned_by = COALESCE(abandoned_by, %s)
-            WHERE schedule_id = %s AND without_overlapping AND status = 'in_progress'
+            WHERE schedule_id = %s AND without_overlapping AND status = %s
               AND lease_expires_at <= clock_timestamp()
             SQL
-            , $recoveredBy, $scheduleId);
+            , RunStatus::Abandoned->value, $recoveredBy, $scheduleId, RunStatus::InProgress->value);
 
         return $this->connection->getAffectedRows();
     }
@@ -161,7 +162,7 @@ final readonly class PostgresTaskRunStorage implements TaskRunStorage
             'without_overlapping%b' => $definition->withoutOverlapping,
             'overlap_expires_after_minutes%i' => $definition->overlapExpiresAfterMinutes,
             'on_one_server%b' => $definition->onOneServer,
-            'status' => 'in_progress',
+            'status' => RunStatus::InProgress->value,
             'owner_token' => Connection::expression('gen_random_uuid()'),
             'started_at' => Connection::expression('(SELECT now FROM instant)'),
             'lease_expires_at' => Connection::expression(
