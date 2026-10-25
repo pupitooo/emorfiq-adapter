@@ -78,8 +78,16 @@ not due does not request a lock. A future implementation must supply these mutex
 services to `SchedulerApplication` and preserve the distinction between an
 execution lock and a scheduling lock.
 
-See [Laravel mutex integration](../laravel-scheduler.md#mutex-placeholders) for
-the current service boundary.
+See [LaravelAdapter execution conditions](../adapter/laravel.md#execution-conditions)
+for the current service boundary.
+
+## Persistent coordination design
+
+The PostgreSQL target design keeps occurrence deduplication separate from active
+execution ownership. See [Execution coordination](../execution/coordination.md),
+[Recovery scenarios](../execution/recovery.md), and
+[Verification](../execution/verification.md). Those pages define future behavior;
+they do not change the implementation status above.
 
 ## Scheduler references
 

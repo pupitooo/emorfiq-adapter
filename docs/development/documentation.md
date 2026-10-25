@@ -21,7 +21,8 @@ the browser automatically. Stop it with `make docs-stop`.
 The home page is generated from the repository's `README.md` by
 `tools/docs/hooks.py`. All topic Markdown files live in `docs/`, with lowercase,
 hyphen-separated filenames. Configuration pages are grouped in `docs/configuration/`; development
-guides live in `docs/development/`. Architecture and task services are directly
+guides live in `docs/development/`. Execution coordination, recovery, external
+effects, and their verification plan live in `docs/execution/`. Architecture and task services are directly
 in `docs/`. MkDocs reads them through
 `docs_dir: ../../docs` in `tools/docs/mkdocs.yml`; the same file defines the menu.
 Configuration, the README hook, and other documentation tooling live in

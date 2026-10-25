@@ -120,7 +120,7 @@ provides constructor dependencies. See [Task services](../task-services.md) for
 registration, autowiring, instance lifetimes, and resolution failures.
 
 Tasks are resolved only when their schedules are due and event conditions pass;
-see the [Laravel execution cycle](../laravel-scheduler.md#execution-cycle).
+see [LaravelAdapter execution conditions](../adapter/laravel.md#execution-conditions).
 
 ## Implementation and tests
 

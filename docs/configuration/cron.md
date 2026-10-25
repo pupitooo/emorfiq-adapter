@@ -73,7 +73,7 @@ syntax, ranges, and aliases during configuration loading. It validates the
 original value without trimming or transforming it. Invalid expressions raise
 `ConfigurationException` naming the cron field. Syntax validation does not guarantee that an expression has a matching
 calendar date. Laravel Scheduler evaluates whether an expression is due during
-the [execution cycle](../laravel-scheduler.md#execution-cycle).
+the [due-task selection](../adapter/laravel.md#select-due-tasks).
 
 Six-field expressions (seconds or a year), crontab command columns, and
 environment assignments are outside this format.

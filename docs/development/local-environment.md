@@ -49,11 +49,13 @@ See [Database](database.md) for Adminer login details, SQL access, and storage.
 | `make down` | Stop services while retaining logs and database data. |
 | `make logs` | Follow scheduler output and adapter errors. |
 | `make psql` | Open an interactive PostgreSQL session. |
-| `make test` | Run the complete test suite in a separate Docker container. |
-| `make check` | Run PHPStan, ECS coding-standard checks, and the complete test suite. |
+| `make test` | Run the implemented application suite in a separate Docker container. |
+| `make check` | Run PHPStan, ECS coding-standard checks, and the implemented application suite. |
 
 Tests cover task logging, JSON parsing and validation, cached configuration
 snapshots, task service resolution, and execution of configured definitions.
-CI runs both `make test` and `make check`.
+CI runs `make test` and `make check`.
+See [Recovery verification](../execution/verification.md) for planned database
+checks, recovery acceptance contracts, and the implementation completion gate.
 
 Documentation commands are described in [Documentation workflow](documentation.md).

@@ -1,28 +1,99 @@
 # Architecture
 
-Application code is grouped by capability under `app/`. Application-owned
-contracts keep task execution and scheduler configuration independent of vendor
-libraries.
+The adapter loads schedule configuration, selects due work through a scheduler
+integration, resolves application tasks and their dependencies, and calls
+`Task::run()`. Application-owned contracts keep configuration and task execution
+independent of vendor libraries.
 
-## Execution flow
+## System context
+
+The C4 level 1 context diagram shows the adapter as one software system, the
+developer or operator configuring it, and the external periodic trigger.
 
 ```mermaid
 flowchart TD
-    Cron["supercronic: every minute"] --> CLI["bin/run.php"]
-    CLI --> Config["JSON → immutable Configuration"]
-    CLI --> Container["Compile Symfony service container"]
-    Config --> Adapter["LaravelAdapter: run()"]
-    Container --> Resolver["SymfonyTaskResolver"]
-    Container --> Context["SchedulerApplication"]
-    Context --> Schedule["Illuminate Schedule"]
-    Adapter --> Schedule
-    Schedule --> Due["Laravel: select due events and check conditions"]
-    Due --> Callback["Invoke selected callback"]
-    Callback --> Executor["TaskExecutor: lifecycle and failure handling"]
-    Executor --> Resolver
-    Resolver --> Task["Fresh task instance"]
-    Task --> Execution["Execute task: Task::run()"]
+    Operator["Developer / operator<br/>Person"]
+    Trigger["Periodic trigger<br/>External system"]
+    Adapter["Emorfiq Scheduler Adapter<br/>Software system<br/><br/>Loads schedules, selects due work,<br/>and executes application tasks"]
+
+    Operator -->|Configures schedules<br/>and task services| Adapter
+    Trigger -->|Starts execution every minute| Adapter
+
+    classDef person fill:#dcfce7,stroke:#166534,color:#14532d
+    classDef external fill:#ffedd5,stroke:#9a3412,color:#7c2d12
+    classDef system fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
+    class Operator person
+    class Trigger external
+    class Adapter system
 ```
+
+*C4 level 1 — system context. Green identifies the person configuring the system,
+orange the external trigger, and blue the adapter as a whole.*
+
+The blue system includes configuration loading, scheduler integration, dependency
+injection, and application task execution. This follows the
+[C4 system context](https://c4model.com/diagrams/system-context) view of a system
+and its directly connected people and systems.
+
+## Execution flow
+
+The diagram below expands the blue adapter block from the context view into
+implementation components and execution steps.
+The same colors identify the person (green), external trigger (orange), and
+adapter internals (blue).
+
+```mermaid
+flowchart TD
+    Operator["Developer / operator<br/>Person"]
+    Cron["supercronic: every minute<br/>External periodic trigger"]
+
+    subgraph System["Emorfiq Scheduler Adapter — expanded system boundary"]
+        CLI["bin/run.php"]
+        Config["JSON → immutable Configuration"]
+        Container["Compile Symfony service container"]
+        Adapter["LaravelAdapter: run()"]
+        Resolver["SymfonyTaskResolver"]
+        Context["SchedulerApplication"]
+        Schedule["Illuminate Schedule"]
+        Due["Laravel: select due events and check conditions"]
+        Callback["Invoke selected callback"]
+        Executor["TaskExecutor: lifecycle and failure handling"]
+        Task["Fresh task instance"]
+        Execution["Execute task: Task::run()"]
+
+        CLI --> Config
+        CLI --> Container
+        CLI --> Adapter
+        Config --> Adapter
+        Container --> Resolver
+        Container --> Context
+        Container --> Executor
+        Context --> Schedule
+        Adapter --> Schedule
+        Schedule --> Due
+        Due --> Callback
+        Callback --> Executor
+        Executor --> Resolver
+        Resolver --> Task
+        Task --> Execution
+    end
+
+    Cron -->|Starts CLI process| CLI
+    Operator -.->|Defines schedules| Config
+    Operator -.->|Registers task services| Container
+
+    classDef person fill:#dcfce7,stroke:#166534,color:#14532d
+    classDef external fill:#ffedd5,stroke:#9a3412,color:#7c2d12
+    classDef system fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
+    class Operator person
+    class Cron external
+    class CLI,Config,Container,Adapter,Resolver,Context,Schedule,Due,Callback,Executor,Task,Execution system
+    style System fill:#eff6ff,stroke:#1d4ed8,color:#1e3a8a
+```
+
+*Detailed expansion of the context diagram. Solid arrows trace runtime setup and
+execution through `Task::run()`; dotted arrows show configuration by the developer
+or operator. Every blue block belongs to the single adapter system above.*
 
 1. The Docker `scheduler` service runs `supercronic` using `docker/crontab`.
    It starts a new PHP CLI process every minute.
@@ -45,7 +116,8 @@ flowchart TD
    and calls `Task::run()` with lifecycle logging. Skipped definitions do not
    resolve tasks. An empty task list runs nothing; each executed definition receives a fresh task instance.
 
-See [Task services](task-services.md) for registration and resolution failures,
+See [Task services](task-services.md) for adding and changing tasks,
+[Task resolution](task-resolution.md) for service lookup,
 [Task execution](task-execution.md) for logging and failure handling,
 and [Scheduler JSON](configuration/format.md) for fields and validation.
 
@@ -64,7 +136,7 @@ and [Scheduler JSON](configuration/format.md) for fields and validation.
 
 ## Current implementation and pending work
 
-The [Laravel Scheduler integration](laravel-scheduler.md) provides a separate
+The [LaravelAdapter integration](adapter/laravel.md) uses a separate
 Illuminate container and minimal scheduler context, registered in Symfony DI.
 `LaravelAdapter` uses this context to build callback schedules and execute their
 events. Task construction remains in Symfony.
