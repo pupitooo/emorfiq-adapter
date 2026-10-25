@@ -5,12 +5,13 @@ The schema, application coordination layer, Laravel runner integration, and
 [PostgreSQL storage](storage.md) are implemented. Storage tests exercise production
 SQL and concurrency; the recovery acceptance suite covers the full Laravel
 runner, worker crashes, and receiver boundaries. See [Mutex layers](mutex-layers.md)
-to follow the current classes and [verification](verification.md) for test coverage.
+to follow the current classes.
 
 ## Execution lifecycle
 
 The runner reserves an occurrence in a short transaction before resolving the
-service or calling `Task::run()`. A confirmed reservation gets a fresh row ID and
+service or calling `Task::run()`. Every admitted run, including an unprotected
+run, gets a fresh history row ID and
 unpredictable `owner_token`. The transaction must commit before task execution;
 it must not remain open while the task runs.
 
@@ -18,9 +19,9 @@ The coordinator contract is independent of Laravel:
 
 | Operation | Responsibility |
 | --- | --- |
-| Claim | Recover expired overlap locks for this schedule, then attempt a committed reservation. Distinguish a conflict from an infrastructure error or unknown commit outcome. |
-| Finish | Record the original run's success or failure using its row ID and owner token, even after expiry or abandonment. |
-| Recover | Mark expired protected `in_progress` rows as `abandoned`, recording detection time and the recovering process identity. |
+| Claim | Recover expired overlap locks, record history, and acquire requested locks in one transaction. Distinguish conflicts from storage failures or unknown commit outcomes. |
+| Finish | Record the original run's result using its ID and owner token, even after expiry or abandonment; remove only its overlap lock. |
+| Recover | Remove expired overlap locks and mark linked `in_progress` history rows `abandoned`, recording detection time and actor. |
 
 Renewal, worker supervision, ownership-loss signals, and automatic task termination
 are deferred extensions. They are not required by this first implementation.
@@ -55,11 +56,12 @@ remain independent even if they resolve the same task class.
 
 | Protection | Unique index | Lifetime |
 | --- | --- | --- |
-| `onOneServer` | `task_runs_occurrence`: `(schedule_id, scheduled_for)` where `on_one_server` | While the historical row exists, including after success, failure, or abandonment. |
-| `withoutOverlapping` | `task_runs_active_schedule`: `schedule_id` where `without_overlapping AND status = 'in_progress'` | Until completion or explicit recovery changes the row's status. |
+| `onOneServer` | `task_locks_occurrence`: `(schedule_id, scheduled_for)` where `lock_type = 'occurrence'` | Until the lock row is explicitly deleted, independently of completion and history retention. |
+| `withoutOverlapping` | `task_locks_overlap`: `schedule_id` where `lock_type = 'overlap'` | Until completion or explicit expiry recovery removes the lock row. |
 
-These partial indexes exclude rows without their respective option. Both flags
-are disabled by default. Enabling both combines both guarantees.
+Only enabled protections create lock rows. Both flags are disabled by default;
+history is recorded in every case. Enabling both creates two linked locks.
+See [History and locks](history.md) for the relationship and retention rules.
 
 - `onOneServer` selects one winner for an occurrence. A 10:01 run can start while
   10:00 is still running. It neither pins a schedule to one machine nor imposes
@@ -79,13 +81,12 @@ occurrence; it does not guarantee exactly-once business effects.
 `overlapExpiresAfterMinutes` is the fixed overlap-lock lifetime from reservation,
 with the existing default of 60 minutes. It applies only with
 `withoutOverlapping: true`; no second lease-duration option is introduced.
-The deadline is stored in the existing `lease_expires_at` column despite that
-column's historical name. It is never extended in this version.
+The lock deadline is `task_locks.expires_at`; `task_runs.lease_expires_at` keeps
+its original value as historical evidence. Neither is renewed in this version.
 
-Protection is valid while `now < lease_expires_at`; equality is expired.
-Recovery before the next claim explicitly removes an expired row from the
-active index by changing its status. Time passing alone does not change a row or
-free the partial unique index.
+Protection is valid while `now < expires_at`; equality is expired. Recovery
+before the next claim deletes the expired overlap lock and marks linked history
+abandoned. Time passing alone does not delete a lock or free its unique index.
 
 Set expiration longer than the expected maximum execution time, with margin.
 A long task can outlive its lock and overlap a new run. Expiration does not kill

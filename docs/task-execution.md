@@ -99,7 +99,8 @@ See [LaravelAdapter](adapter/laravel.md#select-due-tasks) for event selection,
 runtime limits, and [Adapter UI](development/adapter-ui.md) for inspecting the
 records locally.
 
-The future persistent coordinator has a separate [execution contract](execution/coordination.md)
-and [recovery design](execution/recovery.md). Its database state is distinct from
+The persistent coordinator has a separate [execution contract](execution/coordination.md)
+and [recovery design](execution/recovery.md). It records every admitted run in
+[history](execution/history.md), including unprotected executions. Its database state is distinct from
 the lifecycle log: a completed effect can still have an unconfirmed database
 outcome if the process or final write fails.

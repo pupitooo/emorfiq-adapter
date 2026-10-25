@@ -1,8 +1,8 @@
 # Adapter UI
 
 Start the local environment with `make up`, then open
-[http://localhost:8088](http://localhost:8088). The UI has three tabs:
-configuration, task history, and logs. It is a read-only development tool.
+[http://localhost:8088](http://localhost:8088). The UI has four tabs:
+configuration, task history, locks, and logs. It is a read-only development tool.
 See [Local environment](local-environment.md) for ports and services.
 
 ## Configuration
@@ -19,7 +19,7 @@ configuration files. The UI does not edit configuration or trigger tasks.
 
 Apply the [migrations](migrations.md) before opening history. The tooling reads
 `task_runs` directly using a short read-only transaction and the shared
-[database configuration](../configuration/services.md#database-boundary). It never calls execution
+[database configuration](service-wiring.md#database-boundary). It never calls execution
 coordination, changes run state, or returns owner tokens.
 
 Filter by run ID, schedule ID, task class, status, planned time range, start or
@@ -28,12 +28,38 @@ substrings without case sensitivity. All displayed and filtered times use UTC;
 range endpoints are inclusive and date filters cover the whole UTC day. Filters
 apply on the server to the complete stored history. Results are ordered by
 newest run ID, with 25, 50, or 100 rows per page. Use the row's detail button for
-the original configuration, deadline, abandonment history, and error diagnostic.
+the original configuration, original overlap deadline, abandonment history, error
+diagnostic, and current linked locks. Opening a detail loads a fresh snapshot;
+the history table keeps the snapshot from its last refresh. Protection flags
+describe the configuration at execution start, while **Zámky nyní** reports
+currently stored protections separately from the run outcome.
 
-An empty history is normal for schedules with both protections disabled: the
-runner executes them without a storage reservation. The UI explicitly explains
-that scope. A completed or abandoned row remains visible, and its state is
-refreshed with **Obnovit historii**.
+History includes executions with both protections disabled. Each admitted
+execution has its own row; skipped events are not recorded. Completed and
+abandoned rows remain visible, and their state is refreshed with
+**Obnovit historii**. See [History and locks](../execution/history.md).
+
+## Locks
+
+The **Zámky** tab reads `task_locks` through `/api/locks` in a short read-only
+transaction. It shows both overlap locks and occurrence reservations, including
+rows whose linked history was deleted. Owner tokens are never returned.
+
+Filter by schedule, lock type, lock state, run ID, or whether history is still
+linked. Filtering and pagination apply to all stored locks on the server, with
+25, 50, or 100 rows per page. Click a linked run ID to open its current history
+detail without leaving the lock list. **Obnovit zámky** refreshes the snapshot.
+
+- **Držený**: an overlap lock whose deadline has not passed.
+- **Po expiraci**: an overlap lock waiting for explicit recovery. This does not
+  establish whether its task is still running.
+- **Rezervováno**: an `onOneServer` reservation for one schedule and planned time;
+  it remains after completion and does not block later occurrences.
+
+A missing history link is displayed as **Historie smazána**. Deleting history
+preserves the lock. History detail also distinguishes a disabled protection
+from an enabled protection whose lock is no longer stored. See
+[History and locks](../execution/history.md) for lifecycle and retention rules.
 
 ## Logs
 

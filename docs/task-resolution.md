@@ -105,20 +105,21 @@ Drawbacks of the current design:
 
 ### Alternatives
 
-Putting the Symfony container directly in `TaskExecutor` preserves dependency
-injection, deferred task construction, shared dependencies and fresh task
-instances. The resolver adds an explicit boundary around container access; it
-does not provide those construction capabilities itself. Direct container access
-is a reasonable simpler choice when Symfony is a fixed application dependency.
-The executor can still be tested using a container test double.
+The relevant alternatives keep task construction and dependency wiring in a DI
+container. For this application, the choices are using the existing Symfony
+container directly or consolidating application services in Laravel.
+
+Putting the Symfony container directly in `TaskExecutor` preserves deferred task
+construction, shared dependencies and fresh task instances. The resolver adds a
+boundary around container access; the container supplies these construction
+capabilities. Using PSR-11 for container access is a variation of this approach:
+it reduces dependence on Symfony's API, but task checks and error handling still
+belong to the executor. The executor can be tested using a container test double.
 
 | Approach | Benefits | Drawbacks |
 | --- | --- | --- |
-| `new $taskClass()` | Minimal setup for tasks without required constructor dependencies. | The caller must supply constructor arguments and manage their creation and sharing. Task construction becomes coupled to scheduling or execution code. |
-| Explicit map of task factories | Makes supported tasks and construction rules visible. Can create instances on demand and use stable task names. | Factory registrations need maintenance. Without DI, dependency wiring is manual; factories that use DI still need container integration. |
-| Symfony container inside `TaskExecutor` | Fewer abstractions. Retains DI and construction on demand. | Lookup, `Task` checks and container error handling move into the executor. Its code and tests depend on Symfony's container API; changing containers changes the execution layer. |
-| PSR-11 container inside `TaskExecutor` | A standard container interface reduces dependence on Symfony-specific APIs. | The executor still needs lookup, result validation and error handling. The broad container contract does not express that the returned service must be a `Task`; container integration still needs configuration. |
-| Laravel container for all application services | One container can handle both the scheduler runtime and task dependencies, simplifying bootstrap wiring. | Existing Symfony service definitions need replacement, including task lifetime and logger wiring. Direct Laravel container access in the executor introduces the same coupling; retaining a resolver retains that abstraction's maintenance cost. |
+| Symfony container inside `TaskExecutor` | Removes the resolver layer while retaining existing service definitions, DI and construction on demand. | Service lookup, `Task` checks and container error handling move into the executor. The executor depends on the selected container interface. |
+| Laravel container for all application services | One container handles both the scheduler runtime and task dependencies, simplifying bootstrap wiring. | Existing Symfony service definitions need replacement while preserving task lifetime and logger wiring. Direct container access couples the executor to the selected container interface; keeping a resolver retains its maintenance cost. |
 
 ### Choosing the abstraction
 
@@ -140,39 +141,3 @@ A separate resolver remains useful when supporting different container
 integrations is an actual requirement. The two-container setup here follows from
 combining Symfony-managed application services with the Illuminate scheduler
 runtime; it is not required by the `TaskResolver` contract.
-
-## Validate task references before scheduling
-
-This is a proposed improvement, tracked in
-[issue #12: Validate task class references before scheduler execution](https://github.com/pupitooo/emorfiq-adapter/issues/12).
-It is not implemented by the current parser.
-
-At present, a misspelled task name can pass JSON parsing and fail only when a
-due callback asks the resolver for the task. Adding or removing the resolver
-layer does not remove that risk. Validation can happen earlier in two stages:
-
-1. **Validate the class in the parser.** Check `class_exists($taskClass)` and
-   `is_a($taskClass, Task::class, true)`, and check the canonical class name so
-   its spelling matches the service ID exactly. This catches unknown classes
-   and classes that do not implement `Task`. These checks may autoload class
-   definitions without constructing task instances. PHP documents this behavior
-   for [`class_exists()`](https://www.php.net/manual/en/function.class-exists.php)
-   and [`is_a()`](https://www.php.net/manual/en/function.is-a.php).
-2. **Validate registration before invoking the adapter.** An existing PHP class
-   is not necessarily a registered task service. Inspect the compiled
-   container's service-definition metadata to check that each configured class
-   is available under its expected public service ID. Keep this Symfony-specific
-   validation outside the JSON parser. Public lookup is part of the current
-   integration's [service visibility](https://symfony.com/doc/current/service_container.html#public-versus-private-services)
-   requirement.
-
-Both checks should reject invalid references in every definition, including
-tasks that are not currently due, with a `ConfigurationException` identifying
-`tasks[n].task`. Use metadata rather than `get()` or `resolve()` during validation
-so it does not construct tasks or their dependencies. The issue contains code
-examples for both stages and their integration into configuration loading.
-
-Early validation catches class-reference and registration errors. It cannot
-guarantee that constructors, factories or external resources will succeed at
-runtime. Container compilation detects some dependency-wiring errors; runtime
-resolver checks and task failure handling remain necessary.

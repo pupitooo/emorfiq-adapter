@@ -8,12 +8,12 @@ Source code: **[GitHub repository](https://github.com/pupitooo/emorfiq-adapter)*
 
 ## Run locally
 
-Requirements:
+Requirements on the host:
 
-- Docker with Compose v2+
+- Docker (with Compose v2+)
 - Make
 
-PHP 8.5, PostgreSQL and Composer run inside Docker.
+PHP 8.5, PostgreSQL and Composer run in containers.
 
 ```sh
 make up
@@ -61,22 +61,43 @@ flowchart TD
     class Adapter system
 ```
 
-*C4 level 1 — system context. Green identifies the person configuring the system,
-orange the external trigger, and blue the adapter as a whole.*
+*This diagram shows only the conceptual schema of the adapter.*
 
-The developer or operator supplies schedules and registers application tasks and
-their dependencies. The periodic trigger starts the adapter, which loads the
-configuration and selects due work through a replaceable scheduler integration.
-Before resolving each admitted task, it confirms run history and any requested
-concurrency locks in PostgreSQL, then resolves the task through application-owned
-contracts and calls `Task::run()`.
-Configuration loading, scheduler integration, dependency injection, and task
-execution all belong inside the blue system boundary.
+### Recommended reading order
 
-See [Architecture](docs/architecture.md) for the detailed execution flow,
-contracts, dependency boundaries, and current implementation limits.
-Use [Task services](docs/task-services.md) to add tasks and their dependencies,
-[Task execution](docs/task-execution.md) for lifecycle logs and failure handling,
-and [Scheduler JSON](docs/configuration/format.md) to configure schedules.
-See [History and locks](docs/execution/history.md) for persistent execution records
-and concurrency coordination.
+1. **[Code overview](docs/architecture.md)** — Find component responsibilities,
+   replaceable boundaries, and their locations in the code.
+2. **[Adapter](docs/adapter/index.md)** — Understand the invocation cycle, due-task
+   selection, and scheduler integration.
+
+    - [Laravel integration](docs/adapter/laravel.md)
+
+3. **Configuration**
+
+    - [Scheduler JSON](docs/configuration/format.md) — Schedules and validation.
+    - [Configuration design](docs/configuration/loading.md) — Loading and design decisions.
+    - [Concurrency](docs/configuration/concurrency.md) — Protection options.
+    - [Service wiring](docs/development/service-wiring.md) — Dependencies and implementation choices.
+
+4. **Tasks**
+
+    - [Task services](docs/task-services.md) — Register tasks.
+    - [Dependency resolution](docs/task-resolution.md) — Resolve task dependencies.
+    - [Execution outcomes](docs/task-execution.md) — Handle task results and failures.
+
+5. **[Mutex layers](docs/execution/mutex-layers.md)** — Separate scheduler gates,
+   application coordination, and persistence.
+6. **Persistent coordination**
+
+    - [Admission and completion](docs/execution/coordination.md)
+    - [History and locks](docs/execution/history.md)
+    - [Storage transactions](docs/execution/storage.md)
+
+7. **Failure and recovery**
+
+    - [Recovery](docs/execution/recovery.md) — Crashes and expiration.
+    - [External effects](docs/execution/external-effects.md) — Idempotency and stale workers.
+
+8. **Verification**
+
+    - [Concurrency demo](docs/development/concurrency-demo.md)

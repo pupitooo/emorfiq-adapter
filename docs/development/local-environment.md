@@ -1,7 +1,11 @@
 # Local environment
 
-Requires Docker with Compose v2+ and Make. PHP 8.5, Composer, and development
-tools run in containers; they do not need to be installed on the host.
+Requirements on the host:
+
+- Docker (with Compose v2+)
+- Make
+
+PHP 8.5, PostgreSQL, Composer, and development tools run in containers.
 Run commands from the application root.
 
 ## Start and stop
@@ -56,7 +60,7 @@ The scheduler writes task records to `storage/logs/adapter.log` in the shared
 Docker `runtime` volume. The [adapter UI](adapter-ui.md) reads that same file
 and displays lifecycle details, durations, and exceptions. `make logs`
 follows scheduler process output and adapter errors in the terminal.
-See [Architecture](../architecture.md) for the invocation flow and current scheduling limits.
+See [Adapter](../adapter/index.md) for the invocation cycle and scheduling limits.
 
 See [Database](database.md) for Adminer login details, SQL access, and storage.
 
@@ -75,7 +79,5 @@ See [Database](database.md) for Adminer login details, SQL access, and storage.
 Tests cover task logging, JSON parsing and validation, cached configuration
 snapshots, task service resolution, and execution of configured definitions.
 CI runs `make test` and `make check`.
-See [Recovery verification](../execution/verification.md) for planned database
-checks, recovery acceptance contracts, and the implementation completion gate.
 
 Documentation commands are described in [Documentation workflow](documentation.md).

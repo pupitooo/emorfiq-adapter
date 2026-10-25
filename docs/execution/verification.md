@@ -2,6 +2,14 @@
 
 ## Current status and commands
 
+The schema has been split into `task_runs` and `task_locks`, and migrations
+consolidated into one file. Test adaptation and execution are deferred for this
+change. The commands and scenarios below describe the existing verification
+baseline; they are not evidence that the new schema has passed verification.
+Migration fixtures, direct row-lock barriers, index assertions, and unprotected
+execution expectations still need updating. Add coverage for history deletion
+preserving locks and distinct history rows for unprotected duplicate runs.
+
 Schema migrations, production coordination, runner integration, and PostgreSQL
 storage are implemented. `make test-storage` exercises production storage in
 isolated schemas, including concurrent PHP workers. `make test-recovery` runs all
@@ -11,19 +19,15 @@ real worker processes, and receiver fixtures.
 | Command | Scope | Current result |
 | --- | --- | --- |
 | `make check` | PHPStan, ECS, and application tests | Must pass; required in CI. |
-| `make test-db` | Migrations 001 and 002, upgrade history, and partial indexes | Must pass; required in CI. |
+| `make test-db` | Single migration and separate lock indexes; fixtures pending adaptation | Deferred for this schema change. |
 | `make test-storage` | 22 production PostgreSQL storage scenarios, including races and commit failures | Must pass; required in CI. |
 | `make test-recovery` | 43 named acceptance scenarios | Must pass; required in CI. |
 | `docker compose run --rm --no-deps -T check composer test:recovery:list` | List acceptance scenarios without executing them | Lists 43 scenarios; rebuild `check` after source changes. |
 
-`make test-db` streams the real migrations and SQL fixtures into an isolated
-transactional schema and rolls everything back. Its 14 scenarios verify upgrade
-compatibility, retained occurrence reservations, overlap protection, fixed
-expiration, independent flags and IDs, recovery attribution, and late success or
-failure without unlocking a replacement. The legacy fixture is inserted after
-migration 001 and before migration 002. No application migrations need to be
-applied in advance, and application data and migration history remain untouched.
-These checks validate storage and indexes, not production transition SQL or races.
+`make test-db` uses an isolated transactional schema and rolls everything back.
+Its current fixtures still target the previous two-migration schema; adapting
+them to the single migration and `task_locks` is pending. Application data and
+migration history must remain untouched by schema verification.
 
 The [storage suite](storage.md#storage-tests) exercises transition SQL and races
 through production storage. Its database clock is controlled inside each isolated

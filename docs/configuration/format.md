@@ -18,16 +18,18 @@ to the application and is independent of the scheduling library.
             "id": "ping-morning",
             "task": "App\\Task\\Execution\\PingTask",
             "cron": "0 9 * * *",
-            "timezone": "Europe/Prague"
+            "timezone": "Europe/Prague",
+            "withoutOverlapping": true,
+            "overlapExpiresAfterMinutes": 30,
+            "onOneServer": true
         }
     ]
 }
 ```
 
-The first definition describes a schedule every minute in UTC. The second
-describes a daily schedule at 09:00 in the Prague time zone. Definitions describe
-the intended schedule; translating them into executable scheduler jobs is part
-of the scheduler integration.
+The first definition runs every minute in UTC using default options. The second
+shows all supported task fields: daily at 09:00 in the Prague time zone, with
+both concurrency protections enabled and a 30-minute execution lock expiration.
 
 ## Root object
 
@@ -64,8 +66,7 @@ Each element of `tasks` must be a JSON object:
 The same task class can have multiple schedules, each with its own unique `id`.
 
 See [Concurrency](concurrency.md) for examples, lock semantics, and the current
-implementation status. Protected events require PostgreSQL storage with the
-[database migrations](../development/migrations.md) applied.
+implementation status.
 
 ### String validation
 

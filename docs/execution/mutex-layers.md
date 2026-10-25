@@ -43,15 +43,16 @@ flowchart TB
     Adapter -->|Event callback: execute| Execution
     Registry -->|Return same execution context| Execution
     Coordinator --> Storage
-    Postgres -->|Transactional SQL| DB[("PostgreSQL<br/>task_runs and partial unique indexes")]
-    Execution -->|After confirmed claim, or without protections| Executor
+    Postgres -->|Transactional SQL| DB[("PostgreSQL<br/>task_runs history and task_locks indexes")]
+    Execution -->|After confirmed history and requested locks| Executor
 ```
 
-Solid arrows show calls or context lookup. Dotted **Implemented by** arrows
-identify the implementations selected by dependency injection; they do not add
-another lifecycle step. The SQL arrow represents implemented PostgreSQL operations. The task branch
-ends at `Task::run()`; outcome persistence returns through `ScheduledExecution`
-and the storage branch.
+- Solid arrows show calls or context lookup.
+- Dotted **Implemented by** arrows identify the implementations selected by
+  dependency injection; they do not add another lifecycle step.
+- The SQL arrow represents implemented PostgreSQL operations.
+- The task branch ends at `Task::run()`; outcome persistence returns through
+  `ScheduledExecution` and the storage branch.
 
 `ExecutionMutex` and `TaskRunStorage` expose no Illuminate types.
 `ExecutionCoordinator` currently translates calls directly to storage; atomic
@@ -78,7 +79,7 @@ and [Recovery](recovery.md) for state transitions.
    overlap lookup. A denied claim skips task resolution and invocation.
 5. The event callback calls `ScheduledExecution::execute()`, which reuses the
    claim or obtains it before calling `TaskExecutor::execute()`. With both
-   protections disabled, it calls the executor directly without storage access.
+   protections disabled, it still records a fresh run, without acquiring locks.
 6. For a claimed run, `ScheduledExecution` records `Succeeded` or `Failed` through
    `finish()` using the original `RunClaim` (run ID and owner token). Its `finally`
    block clears local state. `CoordinatedEventMutex::forget()` also clears only
@@ -98,12 +99,65 @@ to continue with later events.
 | --- | --- | --- |
 | `isOverlapLocked()` | `hasLiveOverlap()` | Advisory lookup for a live overlap lock. |
 | `isOccurrenceReserved()` | `hasOccurrence()` | Lookup for a single-server occurrence, including completed runs. |
-| `claim()` | `reserve()` | Recover expired locks and reserve in one transaction; return a confirmed `RunClaim` or `null` on conflict. |
-| `finish()` | `complete()` | Record the original owner's result by run ID and token. |
-| `recover()` | `abandonExpired()` | Explicitly abandon expired protected runs. |
+| `claim()` | `reserve()` | Recover expired locks, record history, and acquire requested locks in one transaction; return a confirmed `RunClaim` or `null` on conflict. |
+| `finish()` | `complete()` | Record the original owner's result and remove its overlap lock by run ID and token. |
+| `recover()` | `abandonExpired()` | Remove expired overlap locks and abandon linked unfinished runs. |
+
+`reserve()` is called for every task execution, even when both concurrency
+protections are disabled. It still creates a `task_runs` record, but no new
+`task_locks` rows.
 
 `ScheduledExecution` does not call `recover()` separately before `claim()`.
 Recovery during reservation must remain inside `reserve()`'s transaction.
+
+### Method lifecycle
+
+```mermaid
+flowchart TD
+    Lookup["Due event, if withoutOverlapping:<br/>isOverlapLocked() → hasLiveOverlap()"]
+    Lookup -->|"Live overlap lock"| Skip["Skip task"]
+    Lookup -->|"No live lock, or protection disabled"| Reserve
+
+    Reserve["claim() → reserve()<br/>One transaction:<br/>recover expired overlap locks,<br/>create run record, acquire requested locks"]
+    Reserve -->|"null: lock conflict"| Skip
+    Reserve -->|"Confirmed RunClaim"| Task["TaskExecutor::execute()<br/>Task::run()"]
+    Reserve -->|"Storage failure or unconfirmed commit"| Stop["Propagate infrastructure error"]
+    Task -->|"Success or task failure"| Finish["finish() → complete()<br/>Record outcome by run ID and owner token;<br/>remove owned overlap lock"]
+    Finish -->|Accepted| Done["Outcome recorded"]
+    Finish -->|"Rejected or storage failure"| Stop
+```
+
+- The lookup is advisory; only a confirmed `RunClaim` permits task execution.
+- The first enabled scheduling gate requests the claim. If both protections
+  are disabled, the task callback requests it instead. Later calls reuse the
+  cached result, so `reserve()` runs once per execution context.
+- `reserve()` performs recovery internally; it does not call the public
+  `recover()` / `abandonExpired()` pair.
+- Completion retains the occurrence reservation. A recorded task failure is
+  rethrown to the adapter; local context is cleared in `finally` even if
+  completion fails.
+
+The other two method pairs are separate entry points, outside this normal
+adapter lifecycle:
+
+- `isOccurrenceReserved()` / `hasOccurrence()` supports Laravel's
+  `SchedulingMutex::exists()` contract. The current adapter flow does not call
+  it: `serverShouldRun()` requests a claim through `SchedulingMutex::create()`.
+- `recover()` / `abandonExpired()` allows recovery to be invoked independently.
+  Current callers are tests and their worker processes. Normal scheduling
+  performs recovery inside `reserve()` instead.
+
+The diagram below completes the method overview; these calls are not additional
+required lifecycle steps.
+
+```mermaid
+flowchart TD
+    Query["Explicit occurrence-state query"] --> Occurrence["isOccurrenceReserved()<br/>→ hasOccurrence()"]
+    Occurrence --> Exists["Return whether this schedule and UTC minute<br/>have an occurrence reservation"]
+
+    Recovery["Explicit recovery request"] --> Recover["recover()<br/>→ abandonExpired()"]
+    Recover --> Abandoned["One transaction: remove expired overlap locks<br/>and mark linked unfinished runs abandoned"]
+```
 
 ## Code map
 
@@ -131,5 +185,4 @@ Paths below are relative to the repository root (`src/` in the project workspace
 execution gates. `tests/Integration/Scheduler/ExecutionLifecycleTest.php` checks
 outcomes, infrastructure failures, and stable occurrence time. Both use
 `RecordingExecutionMutex`. The [storage suite](storage.md#storage-tests) verifies
-PostgreSQL persistence and races. See
-[Verification](verification.md) for database checks and recovery acceptance coverage.
+PostgreSQL persistence and races.

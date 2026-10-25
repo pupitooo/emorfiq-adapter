@@ -1,13 +1,18 @@
-# Architecture
+# Code overview
 
-The adapter loads schedule configuration, selects due work through a scheduler
-integration, resolves application tasks and their dependencies, and calls
-`Task::run()`. Application-owned contracts keep configuration and task execution
-independent of vendor libraries.
+Each CLI invocation:
+
+- Prepares configuration and dependencies.
+- Selects due tasks.
+- Confirms execution history and requested concurrency locks.
+- Resolves tasks and calls `Task::run()`.
+
+This page maps those responsibilities to the code;
+[Adapter](adapter/index.md) explains the execution cycle.
 
 ## System context
 
-The C4 level 1 context diagram shows the adapter as one software system, the
+The diagram shows the adapter as one software system, the
 developer or operator configuring it, and the external periodic trigger.
 
 ```mermaid
@@ -27,142 +32,54 @@ flowchart TD
     class Adapter system
 ```
 
-*C4 level 1 — system context. Green identifies the person configuring the system,
-orange the external trigger, and blue the adapter as a whole.*
+## Responsibilities and code
 
-The blue system includes configuration loading, scheduler integration, dependency
-injection, and application task execution. This follows the
-[C4 system context](https://c4model.com/diagrams/system-context) view of a system
-and its directly connected people and systems.
+Follow the topic links for details.
 
-## Execution flow
+| Responsibility | Where to look in code | Documentation |
+| --- | --- | --- |
+| Prepare dependencies and start the adapter. | `run.php`<br>`services.php` | [Service wiring](development/service-wiring.md) |
+| Load and validate schedules into immutable configuration objects. | `InMemorySchedulerConfiguration.php`<br>`JsonConfigurationParser.php` | [Configuration design](configuration/loading.md), [JSON format](configuration/format.md) |
+| Map definitions to scheduler events, select due work, and run execution gates. | `LaravelAdapter.php`<br>`SchedulerApplication.php`<br>`Schedule.php` | [Adapter](adapter/index.md), [Laravel integration](adapter/laravel.md) |
+| Share one execution claim between scheduling gates and the callback; record the outcome. | `ScheduledExecution.php`<br>`ExecutionCoordinator.php`<br>`CoordinatedEventMutex.php`<br>`CoordinatedSchedulingMutex.php`<br>`EventExecutions.php` | [Mutex layers](execution/mutex-layers.md), [Coordination](execution/coordination.md) |
+| Persist history and requested locks through atomic database operations. | `PostgresTaskRunStorage.php`<br>`PostgresConnectionFactory.php` | [History and locks](execution/history.md), [Storage](execution/storage.md) |
+| Resolve task instances and their constructor dependencies. | `SymfonyTaskResolver.php` | [Task resolution](task-resolution.md) |
+| Invoke `Task::run()` with lifecycle logging and task failure handling. | `TaskExecutor.php` | [Task execution](task-execution.md), [Task services](task-services.md) |
 
-The diagram below expands the blue adapter block from the context view into
-implementation components and execution steps.
-The same colors identify the person (green), external trigger (orange), and
-adapter internals (blue).
+## How the parts can be replaced
 
-```mermaid
-flowchart TD
-    Operator["Developer / operator<br/>Person"]
-    Cron["supercronic: every minute<br/>External periodic trigger"]
+The intended split keeps scheduling, configuration, task construction, and
+storage replaceable independently. The shared code asks for an interface
+(a contract describing the operations it needs), rather than a particular
+library or database implementation.
 
-    subgraph System["Emorfiq Scheduler Adapter — expanded system boundary"]
-        CLI["bin/run.php"]
-        Config["JSON → immutable Configuration"]
-        Container["Compile Symfony service container"]
-        Adapter["LaravelAdapter: run()"]
-        Resolver["SymfonyTaskResolver"]
-        Context["SchedulerApplication"]
-        Schedule["Illuminate Schedule"]
-        Due["Laravel: select due events and check conditions"]
-        Callback["Invoke selected callback"]
-        Executor["TaskExecutor: lifecycle and failure handling"]
-        Task["Fresh task instance"]
-        Execution["Execute task: Task::run()"]
+The folders reflect this split:
 
-        CLI --> Config
-        CLI --> Container
-        CLI --> Adapter
-        Config --> Adapter
-        Container --> Resolver
-        Container --> Context
-        Container --> Executor
-        Context --> Schedule
-        Adapter --> Schedule
-        Schedule --> Due
-        Due --> Callback
-        Callback --> Executor
-        Executor --> Resolver
-        Resolver --> Task
-        Task --> Execution
-    end
+- **Contract** defines the interfaces that components agree to use.
+- **Domain** holds shared values such as schedule definitions and execution
+  claims. These objects expose no scheduler, container, or database-library types.
+- **Application** coordinates execution through those contracts: claim a run,
+  resolve the task, invoke it, and record its outcome.
+- **Infrastructure** connects a contract to a specific technology, such as
+  Illuminate scheduling, Symfony service lookup, JSON parsing, or PostgreSQL.
 
-    Cron -->|Starts CLI process| CLI
-    Operator -.->|Defines schedules| Config
-    Operator -.->|Registers task services| Container
+Dependencies are passed into constructors. `config/services/` chooses service
+implementations through interface aliases; `bin/run.php` selects the configuration
+provider and adapter. This is dependency injection: components receive their
+collaborators instead of creating the concrete implementations themselves.
 
-    classDef person fill:#dcfce7,stroke:#166534,color:#14532d
-    classDef external fill:#ffedd5,stroke:#9a3412,color:#7c2d12
-    classDef system fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
-    class Operator person
-    class Cron external
-    class CLI,Config,Container,Adapter,Resolver,Context,Schedule,Due,Callback,Executor,Task,Execution system
-    style System fill:#eff6ff,stroke:#1d4ed8,color:#1e3a8a
-```
-
-*Detailed expansion of the context diagram. Solid arrows trace runtime setup and
-execution through `Task::run()`; dotted arrows show configuration by the developer
-or operator. Every blue block belongs to the single adapter system above.*
-
-1. The Docker `scheduler` service runs `supercronic` using `docker/crontab`.
-   It starts a new PHP CLI process every minute.
-2. `bin/run.php` loads `config/services.php` and compiles a new Symfony container
-   for that invocation. It also constructs `InMemorySchedulerConfiguration` with
-   `config/scheduler.json`, retrieves `SchedulerApplication` and `TaskExecutor`
-   from the container, and supplies these with the configuration to the adapter.
-3. The configuration provider reads and validates JSON once during construction.
-   `getConfiguration()` returns the same immutable `Configuration` snapshot,
-   containing a list of `ScheduleDefinition` objects.
-4. `LaravelAdapter` builds a fresh Illuminate `Schedule`, mapping each definition
-   to a callback event with its identifier, cron expression, time zone, and
-   [concurrency options](configuration/concurrency.md).
-   Registration does not resolve tasks.
-5. `run()` calls Laravel's `dueEvents()` to select events for the current time,
-   then checks each event's `filtersPass()` result and, when requested,
-   `serverShouldRun()` result before executing it.
-   Laravel evaluates the cron expression in the event's time zone.
-6. Inside each selected callback, `TaskExecutor` asks `TaskResolver` for the task
-   and calls `Task::run()` with lifecycle logging. Skipped definitions do not
-   resolve tasks. An empty task list runs nothing; each executed definition receives a fresh task instance.
-
-See [Task services](task-services.md) for adding and changing tasks,
-[Task resolution](task-resolution.md) for service lookup,
-[Task execution](task-execution.md) for logging and failure handling,
-and [Scheduler JSON](configuration/format.md) for fields and validation.
-
-## Dependency boundaries
-
-| Area | Responsibility and boundary |
+| To replace | Boundary that stays the same |
 | --- | --- |
-| Scheduler contracts | `Adapter::run()` starts execution; `SchedulerConfiguration` supplies typed configuration. Neither contract exposes vendor types. |
-| Scheduler domain | Immutable configuration and schedule values, independent of Nette Schema and scheduler libraries. |
-| Configuration infrastructure | File access and JSON mapping through Nette Schema. Invalid configuration raises `ConfigurationException`. |
-| Task contracts | `Task::run()` describes work; `TaskResolver::resolve()` retrieves an executable task. |
-| Task infrastructure | `SymfonyTaskResolver` adapts the compiled container to `TaskResolver`. `TaskExecutor` depends on the contract. |
-| Scheduler application | `TaskExecutor` resolves and executes tasks with PSR-3 lifecycle logging and preserves individual failures. |
-| Database infrastructure | `App\Database` creates independent Dibi connections over PDO PostgreSQL. Scheduler infrastructure owns task run SQL and coordination transactions. |
-| Task execution | Concrete tasks depend on constructor-injected services such as PSR-3 `LoggerInterface`. |
-| Composition | `bin/run.php` and `config/services/` choose implementations and wire dependencies. |
+| Schedule source | `SchedulerConfiguration` returns the same typed `Configuration`. |
+| Scheduling library | `Adapter::run()` starts the cycle; shared configuration, task, and coordination contracts remain usable. Library-specific event and mutex integration must be supplied by the new adapter. |
+| Task container | `TaskResolver` returns an object implementing `Task`; the executor does not need Symfony container access. |
+| Coordination storage | `ExecutionMutex` separates execution from persistence; `ExecutionCoordinator` delegates to `TaskRunStorage`, whose implementation owns database operations. |
 
-See [Service wiring](configuration/services.md) for configuration file ownership,
-database connection settings, and implementation aliases.
-
-## Current implementation and pending work
-
-The [LaravelAdapter integration](adapter/laravel.md) uses a separate
-Illuminate container and minimal scheduler context, registered in Symfony DI.
-`LaravelAdapter` uses this context to build callback schedules and execute their
-events. Task construction remains in Symfony.
-
-Each CLI invocation builds a plan and executes its currently due callbacks in
-configuration order. Cron evaluation, time zones, aliases, and event conditions
-are delegated to Laravel Scheduler. Task failures are logged while remaining
-due events continue. Like Laravel's runner, the CLI completes normally after
-reported task failures; infrastructure errors still abort immediately. See
-[Task execution](task-execution.md#process-exit-status) for exit status semantics.
-
-Protected events use `ExecutionCoordinator` and [PostgreSQL storage](execution/storage.md)
-for committed reservations, owner-checked completion, and expired-run recovery.
-Apply the database migrations before executing protected events. The
-[recovery acceptance suite](execution/verification.md) exercises the production
-runner, worker crashes, and receiver boundaries.
-The container is compiled for each invocation; it is not cached between processes.
-
-`CrunzAdapter` implements the same adapter contract but currently throws
-`LogicException('Not Implemented')`. `DatabaseSchedulerConfiguration` implements
-the configuration provider contract but throws
-`ConfigurationException('Not Implemented')`.
+For example, replacing PostgreSQL means implementing `TaskRunStorage` and changing
+its service registration and alias. Task classes and `ScheduledExecution` continue
+using the same contracts. The replacement must preserve the
+[coordination guarantees](execution/coordination.md), including atomic claims and
+completion checked against the original owner.
 
 ## Directory layout
 
@@ -173,31 +90,25 @@ app/
   Database/                   PostgreSQL connection factory
   Scheduler/
     Application/              Task execution, per-occurrence lifecycle, and coordinator
-    Contract/                 Adapter, configuration, execution mutex, and storage contracts
-    Domain/                   Configuration, schedule definitions, claims, and run outcomes
-    Exception/                Configuration, task execution, and coordination failures
+    Contract/                 Adapter, configuration, execution mutex, and storage interfaces
+    Domain/                   Configuration, schedule definitions, claims, and outcomes
+    Exception/                Configuration, execution, and coordination failures
     Infrastructure/
-      Configuration/          JSON parser, in-memory provider, database placeholder
+      Configuration/          Configuration providers and JSON parsing
       Database/               Task run storage and coordination transactions
-      Laravel/
-        LaravelAdapter.php    Maps configuration and executes scheduler callbacks
-        Runtime/              SchedulerApplication context and Schedule
+      Laravel/                Scheduler integration
+        Runtime/              Scheduler context and Schedule
         Mutex/                Coordinated mutexes and shared event execution registry
       Crunz/                  Alternative adapter placeholder
   Task/
-    Contract/                 Task and TaskResolver
-    Execution/                Concrete task implementations, including PingTask
-    Infrastructure/Symfony/   SymfonyTaskResolver
+    Contract/                 Task and TaskResolver interfaces
+    Execution/                Concrete task implementations
+    Infrastructure/Symfony/   Task resolution through Symfony DI
 bin/run.php                   CLI composition and execution entry point
 config/
   scheduler.json              Schedule definitions
   services.php                Imports service configuration
-  services/
-    logging.php               Shared Monolog logger and PSR-3 alias
-    database.php              Connection settings, PostgreSQL factory, and Dibi
-    scheduler.php             Storage selection, coordinator, and TaskExecutor
-    scheduler-laravel.php     Illuminate mutex aliases and scheduler context
-    tasks.php                 Task discovery and constructor autowiring
+  services/                   Service definitions, interface aliases, and dependency wiring
 docker/crontab                Periodic invocation of the CLI entry point
 ```
 
