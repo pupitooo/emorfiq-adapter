@@ -52,10 +52,12 @@ nav:
   - Execution:
       - Mutex layers: execution/mutex-layers.md
       - Coordination: execution/coordination.md
+      - Storage: execution/storage.md
       - Recovery: execution/recovery.md
       - External effects: execution/external-effects.md
       - Verification: execution/verification.md
   - Configuration:
+      - Services: configuration/services.md
       - JSON format: configuration/format.md
       - Cron syntax: configuration/cron.md
       - Concurrency: configuration/concurrency.md

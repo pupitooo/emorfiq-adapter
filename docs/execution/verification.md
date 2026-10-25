@@ -2,15 +2,17 @@
 
 ## Current status and commands
 
-The schema migrations and SQL checks are implemented. Production coordination,
-runner integration, and the PostgreSQL/worker harness adapter remain pending.
-The acceptance runner fails explicitly until that adapter exists; its scenarios
-are requirements, not evidence of working production coordination.
+Schema migrations, production coordination, runner integration, and PostgreSQL
+storage are implemented. `make test-storage` exercises production storage in
+isolated schemas, including concurrent PHP workers. The broader worker-crash
+harness adapter remains pending; its acceptance runner still fails explicitly.
+Those scenarios remain requirements rather than executed end-to-end evidence.
 
 | Command | Scope | Current result |
 | --- | --- | --- |
 | `make check` | PHPStan, ECS, and application tests | Must pass; required in CI. |
 | `make test-db` | Migrations 001 and 002, upgrade history, and partial indexes | Must pass; required in CI. |
+| `make test-storage` | 21 production PostgreSQL storage scenarios, including races and commit failures | Must pass; required in CI. |
 | `make test-recovery` | 43 named acceptance scenarios | Intentionally red: production harness adapter is missing. |
 | `docker compose run --rm --no-deps -T check composer test:recovery:list` | List acceptance scenarios without executing them | Lists 43 scenarios; rebuild `check` after source changes. |
 
@@ -22,6 +24,12 @@ failure without unlocking a replacement. The legacy fixture is inserted after
 migration 001 and before migration 002. No application migrations need to be
 applied in advance, and application data and migration history remain untouched.
 These checks validate storage and indexes, not production transition SQL or races.
+
+The [storage suite](storage.md#storage-tests) exercises transition SQL and races
+through production storage. Its database clock is controlled inside each isolated
+schema. It covers both commit orders for recovery and completion, waits crossing
+expiry, concurrent recovery/claims, rollback, and lost commit acknowledgement.
+It does not implement the worker-crash and external-receiver harness below.
 
 The acceptance runner creates a fresh `RecoveryHarness` per scenario and cleans
 it up after both success and failure. The pending factory throws explicitly;

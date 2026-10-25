@@ -23,7 +23,7 @@ require $projectDir . '/vendor/autoload.php';
 $container = new ContainerBuilder();
 $loader = new PhpFileLoader($container, new FileLocator($projectDir . '/config'));
 $loader->load('services.php');
-$container->compile();
+$container->compile(true);
 
 // Resolve SchedulerApplication, which supplies Laravel's scheduler context.
 // Tasks are instantiated later, when selected callbacks invoke TaskExecutor.

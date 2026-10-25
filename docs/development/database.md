@@ -53,5 +53,11 @@ Database files live in the Compose-managed `postgres_data` volume, mounted at
 `/var/lib/postgresql` for PostgreSQL 18. `make down` preserves this volume.
 
 The database starts without application tables. Apply the versioned schema
-explicitly with the [migration commands](migrations.md). The scheduler does not
-connect to PostgreSQL yet; persistent mutex behavior is subsequent work.
+explicitly with the [migration commands](migrations.md). Runtime connections use
+`DATABASE_DSN`, `DATABASE_USER`, and `DATABASE_PASSWORD`, supplied by Compose.
+`DATABASE_PASSWORD` defaults to `POSTGRES_PASSWORD` when it is not set explicitly.
+Connection registration and transaction ownership are described in
+[Service wiring](../configuration/services.md#database-boundary).
+
+Run `make test-storage` for isolated PostgreSQL storage tests. See
+[Storage tests](../execution/storage.md#storage-tests) for coverage and isolation.

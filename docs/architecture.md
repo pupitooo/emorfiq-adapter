@@ -131,8 +131,12 @@ and [Scheduler JSON](configuration/format.md) for fields and validation.
 | Task contracts | `Task::run()` describes work; `TaskResolver::resolve()` retrieves an executable task. |
 | Task infrastructure | `SymfonyTaskResolver` adapts the compiled container to `TaskResolver`. `TaskExecutor` depends on the contract. |
 | Scheduler application | `TaskExecutor` resolves and executes tasks with PSR-3 lifecycle logging and preserves individual failures. |
+| Database infrastructure | `App\Database` creates independent PDO connections. Scheduler infrastructure owns task run SQL and coordination transactions. |
 | Task execution | Concrete tasks depend on constructor-injected services such as PSR-3 `LoggerInterface`. |
 | Composition | `bin/run.php` and `config/services/` choose implementations and wire dependencies. |
+
+See [Service wiring](configuration/services.md) for configuration file ownership,
+database connection settings, and implementation aliases.
 
 ## Current implementation and pending work
 
@@ -148,10 +152,10 @@ due events continue. Like Laravel's runner, the CLI completes normally after
 reported task failures; infrastructure errors still abort immediately. See
 [Task execution](task-execution.md#process-exit-status) for exit status semantics.
 
-Functional mutex locking remains pending. Mutex placeholders throw
-`LogicException('Not Implemented')` if a lock operation is requested.
-JSON flags and their adapter mapping are implemented; protected due events fail
-explicitly until the placeholders are replaced.
+Protected events use `ExecutionCoordinator` and [PostgreSQL storage](execution/storage.md)
+for committed reservations, owner-checked completion, and expired-run recovery.
+Apply the database migrations before executing protected events. The full
+worker-crash acceptance harness remains pending.
 The container is compiled for each invocation; it is not cached between processes.
 
 `CrunzAdapter` implements the same adapter contract but currently throws
@@ -165,17 +169,19 @@ Paths are relative to the application root.
 
 ```text
 app/
+  Database/                   PostgreSQL connection factory
   Scheduler/
-    Application/              TaskExecutor and lifecycle logging
-    Contract/                 Adapter and SchedulerConfiguration
-    Domain/                   Configuration and ScheduleDefinition
-    Exception/                Configuration and task execution failures
+    Application/              Task execution, per-occurrence lifecycle, and coordinator
+    Contract/                 Adapter, configuration, execution mutex, and storage contracts
+    Domain/                   Configuration, schedule definitions, claims, and run outcomes
+    Exception/                Configuration, task execution, and coordination failures
     Infrastructure/
       Configuration/          JSON parser, in-memory provider, database placeholder
+      Database/               Task run storage and coordination transactions
       Laravel/
         LaravelAdapter.php    Maps configuration and executes scheduler callbacks
         Runtime/              SchedulerApplication context and Schedule
-        Mutex/                Event and single-server mutex placeholders
+        Mutex/                Coordinated mutexes and shared event execution registry
       Crunz/                  Alternative adapter placeholder
   Task/
     Contract/                 Task and TaskResolver
@@ -187,7 +193,9 @@ config/
   services.php                Imports service configuration
   services/
     logging.php               Shared Monolog logger and PSR-3 alias
-    scheduler.php             Illuminate scheduler context and TaskExecutor
+    database.php              Connection settings, PostgreSQL factory, and PDO
+    scheduler.php             Storage selection, coordinator, and TaskExecutor
+    scheduler-laravel.php     Illuminate mutex aliases and scheduler context
     tasks.php                 Task discovery and constructor autowiring
 docker/crontab                Periodic invocation of the CLI entry point
 ```

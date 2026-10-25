@@ -34,6 +34,8 @@ Declare services as typed constructor parameters:
 - **Scalar parameter:** configure its value or provide a default.
 
 See [Task resolution](task-resolution.md) for dependency wiring.
+See [Service wiring](configuration/services.md) for configuration file ownership
+and database connections.
 
 ## Schedule
 

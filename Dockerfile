@@ -1,6 +1,9 @@
 FROM php:8.5-cli-alpine AS base
 
-RUN apk add --no-cache supercronic
+RUN apk add --no-cache supercronic libpq \
+    && apk add --no-cache --virtual .php-build-deps $PHPIZE_DEPS postgresql-dev \
+    && docker-php-ext-install pdo_pgsql \
+    && apk del .php-build-deps
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 WORKDIR /app
 COPY composer.json composer.lock ./

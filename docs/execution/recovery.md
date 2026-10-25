@@ -1,8 +1,7 @@
 # Recovery scenarios
 
 Recovery frees an expired overlap reservation so a later occurrence can run.
-It does not retry abandoned work or reverse its effects. These are requirements
-for the future coordinator; see [coordination](coordination.md) for the contract
+It does not retry abandoned work or reverse its effects. The [PostgreSQL storage](storage.md) implements these transitions; see [coordination](coordination.md) for the contract
 and [verification](verification.md) for implementation status.
 
 ## Recovery before reservation
