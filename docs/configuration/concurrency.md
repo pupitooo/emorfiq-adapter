@@ -2,7 +2,7 @@
 
 Each schedule can independently request protection against overlapping runs and
 execution on one server. These options are part of configuration version `1`.
-Existing files remain valid and keep both protections disabled.
+Both protections default to disabled.
 
 ## Configuration
 
@@ -25,16 +25,17 @@ Existing files remain valid and keep both protections disabled.
 | Field | JSON type | Default | Meaning |
 | --- | --- | --- | --- |
 | `withoutOverlapping` | boolean | `false` | Skip an occurrence while the same schedule holds its execution lock. |
-| `overlapExpiresAfterMinutes` | positive integer | `60` | Execution lock lifetime in minutes (1 hour by default), used when `withoutOverlapping` is enabled. |
+| `overlapExpiresAfterMinutes` | positive integer | `60` | Execution lock lifetime in minutes (1 hour by default). May be specified only when `withoutOverlapping` is `true`. |
 | `onOneServer` | boolean | `false` | Allow only the server that acquires the scheduling lock to execute an occurrence. |
 
-Flags accept only JSON `true` or `false`. Expiration must be an integer greater
-than zero, even when overlap protection is disabled. Strings, floating-point
-numbers, explicit `null`, and unknown fields are rejected. Expiration can be
-provided independently of either flag; it never enables protection by itself.
+Flags accept only JSON `true` or `false`. Explicit expiration requires
+`withoutOverlapping: true` and an integer greater than zero. The parser rejects
+it when that flag is omitted or `false`, even if `onOneServer` is `true` or the
+expiration equals the default `60`. Omit expiration to use the 60-minute default.
+Strings, floating-point numbers, explicit `null`, and unknown fields are rejected.
 
-The current sample in `config/scheduler.json` explicitly shows the defaults and
-continues to run without locking.
+The current sample in `config/scheduler.json` explicitly disables both protections
+and omits expiration, so it continues to run without locking.
 
 ## Overlapping runs
 

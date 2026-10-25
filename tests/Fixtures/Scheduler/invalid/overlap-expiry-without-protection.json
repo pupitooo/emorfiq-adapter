@@ -1,0 +1,16 @@
+{
+    "version": 1,
+    "tasks": [
+        {
+            "id": "ordinary",
+            "task": "App\\Task\\Execution\\PingTask",
+            "cron": "* * * * *"
+        },
+        {
+            "id": "expiry-only",
+            "task": "App\\Task\\Execution\\PingTask",
+            "cron": "* * * * *",
+            "overlapExpiresAfterMinutes": 60
+        }
+    ]
+}

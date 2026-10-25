@@ -22,7 +22,7 @@ final readonly class LockingConfigurationParserTest
         'single-server' => [false, 60, true],
         'combined-custom-expiry' => [true, 30, true],
         'explicit-disabled' => [false, 60, false],
-        'expiry-only' => [false, 120, false],
+        'custom-expiry' => [true, 120, false],
         'minimum-expiry' => [true, 1, false],
     ];
 
@@ -35,6 +35,8 @@ final readonly class LockingConfigurationParserTest
         $this->parsesLockingFixture();
         $this->defaultsToUnrestrictedExecution();
         $this->acceptsIndependentLockOptions();
+        $this->acceptsExpirationWithOverlapProtection();
+        $this->rejectsExpirationWithoutOverlapProtection();
         $this->rejectsInvalidLockOptions();
     }
 
@@ -90,7 +92,10 @@ final readonly class LockingConfigurationParserTest
     {
         foreach ([false, true] as $withoutOverlapping) {
             foreach ([false, true] as $onOneServer) {
-                $this->assertLockOptions($withoutOverlapping, $onOneServer);
+                $this->assertLockOptions([
+                    'withoutOverlapping' => $withoutOverlapping,
+                    'onOneServer' => $onOneServer,
+                ], [$withoutOverlapping, 60, $onOneServer]);
             }
         }
     }
@@ -99,21 +104,58 @@ final readonly class LockingConfigurationParserTest
      * @throws ConfigurationException
      * @throws JsonException
      */
-    private function assertLockOptions(bool $withoutOverlapping, bool $onOneServer): void
+    private function acceptsExpirationWithOverlapProtection(): void
     {
-        foreach ([1, 30, 60, 1440] as $minutes) {
-            $json = $this->json([
-                'withoutOverlapping' => $withoutOverlapping,
-                'onOneServer' => $onOneServer,
-                'overlapExpiresAfterMinutes' => $minutes,
-            ]);
-            $definition = new JsonConfigurationParser()->parse($json)->tasks[0]
-                ?? throw new LogicException('Parsed configuration must contain its task.');
-            if (
-                $definition->withoutOverlapping !== $withoutOverlapping || $definition->onOneServer !== $onOneServer
-                || $definition->overlapExpiresAfterMinutes !== $minutes
-            ) {
-                throw new LogicException('Lock flags and expiration must be preserved independently.');
+        foreach ([false, true] as $onOneServer) {
+            foreach ([1, 30, 60, 1440] as $minutes) {
+                $this->assertLockOptions([
+                    'withoutOverlapping' => true,
+                    'onOneServer' => $onOneServer,
+                    'overlapExpiresAfterMinutes' => $minutes,
+                ], [true, $minutes, $onOneServer]);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @param array{bool, int, bool} $expected
+     * @throws ConfigurationException
+     * @throws JsonException
+     */
+    private function assertLockOptions(array $options, array $expected): void
+    {
+        $definition = new JsonConfigurationParser()->parse($this->json($options))->tasks[0]
+            ?? throw new LogicException('Parsed configuration must contain its task.');
+        $actual = [$definition->withoutOverlapping, $definition->overlapExpiresAfterMinutes, $definition->onOneServer];
+        if ($actual !== $expected) {
+            throw new LogicException('Lock flags and expiration must retain their configured or default values.');
+        }
+    }
+
+    /**
+     * @throws JsonException
+     */
+    private function rejectsExpirationWithoutOverlapProtection(): void
+    {
+        foreach ([
+            [],
+            [
+                'withoutOverlapping' => false,
+            ],
+            [
+                'onOneServer' => true,
+            ],
+            [
+                'withoutOverlapping' => false,
+                'onOneServer' => true,
+            ],
+        ] as $options) {
+            foreach ([1, 60, 120] as $minutes) {
+                $this->assertInvalidOptions([
+                    ...$options,
+                    'overlapExpiresAfterMinutes' => $minutes,
+                ], 'overlapExpiresAfterMinutes');
             }
         }
     }
@@ -125,24 +167,27 @@ final readonly class LockingConfigurationParserTest
     {
         foreach (['withoutOverlapping', 'onOneServer'] as $field) {
             foreach ([null, 0, 1, 'true', 'false', [], new stdClass()] as $invalid) {
-                $this->assertInvalidOption($field, $invalid);
+                $this->assertInvalidOptions([
+                    $field => $invalid,
+                ], $field);
             }
         }
 
         foreach ([null, 0, -1, 1.0, 1.5, '30', true, false, [], new stdClass()] as $invalid) {
-            $this->assertInvalidOption('overlapExpiresAfterMinutes', $invalid);
+            $this->assertInvalidOptions([
+                'overlapExpiresAfterMinutes' => $invalid,
+            ], 'overlapExpiresAfterMinutes');
         }
     }
 
     /**
+     * @param array<string, mixed> $options
      * @throws JsonException
      */
-    private function assertInvalidOption(string $field, mixed $invalid): void
+    private function assertInvalidOptions(array $options, string $field): void
     {
         try {
-            new JsonConfigurationParser()->parse($this->json([
-                $field => $invalid,
-            ]));
+            new JsonConfigurationParser()->parse($this->json($options));
         } catch (ConfigurationException $exception) {
             $this->assertFailurePath($exception, $field);
 

@@ -34,9 +34,10 @@
             "onOneServer": false
         },
         {
-            "id": "expiry-only",
+            "id": "custom-expiry",
             "task": "App\\Task\\Execution\\PingTask",
             "cron": "* * * * *",
+            "withoutOverlapping": true,
             "overlapExpiresAfterMinutes": 120
         },
         {

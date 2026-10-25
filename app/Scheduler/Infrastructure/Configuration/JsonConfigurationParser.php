@@ -12,7 +12,9 @@ use DateInvalidTimeZoneException;
 use DateTimeZone;
 use JsonException;
 use LogicException;
+use Nette\Schema\Context;
 use Nette\Schema\Expect;
+use Nette\Schema\Message;
 use Nette\Schema\Processor;
 use Nette\Schema\Schema;
 use Nette\Schema\ValidationException;
@@ -108,6 +110,7 @@ final readonly class JsonConfigurationParser
 
     private function taskSchema(): Schema
     {
+        // Keep omissions visible for cross-field validation; the constructor supplies defaults.
         return Expect::structure([
             'id' => Expect::string()->required(),
             'task' => Expect::string()->required(),
@@ -117,7 +120,27 @@ final readonly class JsonConfigurationParser
             'overlapExpiresAfterMinutes' => Expect::int()
                 ->min(1)->default(ScheduleDefinition::DEFAULT_OVERLAP_EXPIRES_AFTER_MINUTES),
             'onOneServer' => Expect::bool(false),
-        ])->castTo(ScheduleDefinition::class);
+        ])->skipDefaults()
+            ->transform($this->validateOverlapExpiration(...))
+            ->castTo(ScheduleDefinition::class);
+    }
+
+    private function validateOverlapExpiration(mixed $task, Context $context): stdClass
+    {
+        if (! $task instanceof stdClass) {
+            throw new LogicException('The task schema must map to an object before checking lock options.');
+        }
+
+        if (! property_exists($task, 'overlapExpiresAfterMinutes') || ($task->withoutOverlapping ?? false) === true) {
+            return $task;
+        }
+
+        $context->addError(
+            'The option %path% requires withoutOverlapping = true.',
+            Message::FailedAssertion,
+        )->path[] = 'overlapExpiresAfterMinutes';
+
+        return $task;
     }
 
     /**
