@@ -101,11 +101,11 @@ final readonly class LaravelAdapter implements Adapter
         DateTimeImmutable $scheduledFor,
     ): void {
         $execution = new ScheduledExecution(
-            $definition,
-            $scheduledFor,
-            $this->processId,
-            $this->mutex,
-            $this->executor,
+            definition: $definition,
+            scheduledFor: $scheduledFor,
+            processId: $this->processId,
+            mutex: $this->mutex,
+            executor: $this->executor,
         );
 
         $event = $schedule->call($execution->execute(...))

@@ -68,7 +68,7 @@ final readonly class PostgresTaskRunStorage implements TaskRunStorage
         string $claimedBy,
     ): ?RunClaim {
         return $this->transaction->reserve(function () use ($definition, $scheduledFor, $claimedBy): ?RunClaim {
-            $this->abandonExpiredWithinTransaction($definition->id, $claimedBy);
+            $this->abandonExpiredWithinTransaction(scheduleId: $definition->id, recoveredBy: $claimedBy);
 
             return $this->insertReservation($definition, $scheduledFor);
         });
@@ -143,7 +143,7 @@ final readonly class PostgresTaskRunStorage implements TaskRunStorage
             throw new \LogicException('Invalid PostgreSQL reservation result.');
         }
 
-        return new RunClaim($row['id'], $row['owner_token']);
+        return new RunClaim(id: $row['id'], ownerToken: $row['owner_token']);
     }
 
     /**

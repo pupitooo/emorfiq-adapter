@@ -26,9 +26,9 @@ final readonly class PostgresConnectionFactory
     public static function fromEnvironment(): self
     {
         return new self(
-            self::environment('DATABASE_DSN'),
-            self::environment('DATABASE_USER'),
-            self::environment('DATABASE_PASSWORD'),
+            dsn: self::environment('DATABASE_DSN'),
+            username: self::environment('DATABASE_USER'),
+            password: self::environment('DATABASE_PASSWORD'),
         );
     }
 

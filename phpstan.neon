@@ -4,6 +4,21 @@ includes:
     - vendor/phpstan/phpstan-deprecation-rules/rules.neon
     - vendor/shipmonk/phpstan-rules/rules.neon
 
+services:
+    -
+        class: DevTools\PHPStan\ApplicationCallResolver
+        arguments:
+            applicationDirectory: %currentWorkingDirectory%/app
+    -
+        class: DevTools\PHPStan\NamedArgumentsRule
+        arguments:
+            checkedDirectories:
+                - %currentWorkingDirectory%/app
+                - %currentWorkingDirectory%/bin
+                - %currentWorkingDirectory%/config
+        tags:
+            - phpstan.rules.rule
+
 parameters:
     shipmonkRules:
         forbidCheckedExceptionInCallable:
@@ -27,6 +42,7 @@ parameters:
         - bin
         - config
         - tools/adapter-ui
+        - tools/phpstan/src
         - tests
         - ecs.php
     tmpDir: /tmp/emorfiq-phpstan

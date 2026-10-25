@@ -41,8 +41,8 @@ final class SchedulerApplication extends Container
     public function createSchedule(): IlluminateSchedule
     {
         return new Schedule(
-            $this->make(EventMutex::class),
-            $this->make(SchedulingMutex::class),
+            eventMutex: $this->make(EventMutex::class),
+            schedulingMutex: $this->make(SchedulingMutex::class),
         );
     }
 

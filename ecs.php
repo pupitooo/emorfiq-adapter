@@ -26,6 +26,7 @@ return ECSConfig::configure()
         __DIR__ . '/config',
         __DIR__ . '/tests',
         __DIR__ . '/tools/adapter-ui',
+        __DIR__ . '/tools/phpstan/src',
         __FILE__,
     ])
     ->withPreparedSets(perCs: true, common: true, cleanCode: true)

@@ -38,7 +38,7 @@ final readonly class PostgresRunTransaction
      */
     public function run(Closure $operation): mixed
     {
-        return $this->execute($operation, reservation: false);
+        return $this->execute(operation: $operation, reservation: false);
     }
 
     /**
@@ -50,7 +50,7 @@ final readonly class PostgresRunTransaction
      */
     public function reserve(Closure $operation): mixed
     {
-        return $this->execute($operation, reservation: true);
+        return $this->execute(operation: $operation, reservation: true);
     }
 
     /**
