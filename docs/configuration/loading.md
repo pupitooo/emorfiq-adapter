@@ -1,61 +1,84 @@
 # Configuration loading
 
-The [scheduler JSON format](format.md) is mapped into typed
-application objects before task execution.
+Configuration is loaded and validated before the adapter builds its execution
+plan. The JSON provider converts the file into typed, immutable application
+objects and keeps that snapshot in memory. The adapter consumes the same
+configuration representation regardless of where it came from.
 
-## Immutable snapshot
+This approach puts responsibility for interpreting external data at the loading
+boundary. Scheduling code can then work with explicit values and defaults
+without repeatedly checking the input format.
 
-`InMemorySchedulerConfiguration` receives the JSON file path in its constructor.
-It reads and converts the file once, retaining an immutable `Configuration`
-object in memory. `getConfiguration()` returns that object on every call.
-The shared `SchedulerConfiguration` contract declares this return type, allowing
-a future database provider to supply the same representation.
+## Why validate and use typed objects
 
-`Configuration` contains `version: int` and `tasks: list<ScheduleDefinition>`.
-Each `ScheduleDefinition` contains `id`, `task`, `cron`, and `timezone` as string
-properties. An omitted time zone becomes `UTC` in the returned definition.
-Implementation code refers to version 1 through `Configuration::FORMAT_VERSION`
-and to the default time zone through `ScheduleDefinition::DEFAULT_TIMEZONE`.
-JSON definitions and fixture expectations keep the corresponding literal values.
+- **Catch configuration errors early.** Invalid configuration is rejected before
+  the adapter builds events from it. A malformed definition cannot silently
+  produce a partially accepted configuration.
+- **Keep scheduling code focused.** Required fields, types, defaults, and schedule
+  validity are handled during loading. Consumers do not need their own array-key
+  checks or fallback values.
+- **Make changes easier to follow.** Named properties describe what each value
+  means and support IDE navigation and static analysis. Changes to the model are
+  easier to trace than conventions spread across associative arrays.
+- **Keep the application independent.** The configuration model belongs to the
+  application, rather than the JSON format, validation library, or scheduler
+  framework. Providers and adapters meet at that shared model.
 
-## Parsing and validation
+Validation covers configuration data. Task service lookup and construction are
+separate responsibilities; see [Task resolution](../task-resolution.md).
 
-`JsonConfigurationParser` decodes JSON with PHP and delegates required fields,
-types, defaults, and object construction to
-[`nette/schema`](https://doc.nette.org/en/schema). `castTo()` passes the validated
-values to the constructors of `Configuration` and `ScheduleDefinition`.
-The domain objects remain independent of Nette.
+## Why use declarative validation
 
-Small JSON container checks preserve the distinction between objects, arrays,
-and null before Nette normalization. String values, unique schedule
-identifiers, cron expressions, and time zone validity are checked on
-the mapped configuration. String validation uses `Nette\Utils\Strings::trim()`,
-including its Unicode whitespace support, to detect empty values and surrounding
-whitespace. Both are rejected without changing the stored values; see
-[String validation](format.md#string-validation).
+The JSON loader uses `nette/schema` to describe the expected structure, required
+fields, types, and defaults together. This keeps the format easier to review and
+extend than a growing sequence of manual checks. Structure and type checks are
+complemented by scheduling-specific rules, such as cron expression validity and
+identifier uniqueness.
 
-Cron values first pass the shared non-empty field check, including Unicode
-whitespace. Missing keys are reported by the required-field schema; empty or
-whitespace-only values produce a non-empty field error. Non-empty cron values
-then pass field-count, syntax, range, and alias validation through
-`dragonmantank/cron-expression`. See [Cron syntax](cron.md) for accepted forms.
-There is no separate cron regular expression or alias list. Cron syntax
-validation receives the original string. Returned definitions retain accepted
-values unchanged, so adapters can use them directly without normalization.
+The tradeoff is an additional dependency and the need to understand its
+validation behavior.
+Keeping validation at the loading boundary contains that dependency: the
+configuration objects and scheduling code do not depend on Nette.
 
-## Failures and alternative providers
+## Why keep an immutable snapshot
 
-Unreadable files, invalid JSON, unsupported versions, invalid field types,
-empty strings or surrounding whitespace, duplicate identifiers, invalid time zones, and cron
-expressions with invalid syntax, ranges, field counts, or unknown aliases raise
-`ConfigurationException`.
-Schema failures preserve `Nette\Schema\ValidationException` as their previous
-exception and include the collected schema messages. Native JSON and time zone
-failures retain their original exception types as before.
-Task instances are resolved separately through [Task services](../task-services.md).
+Reading and validating once gives each provider instance a stable view of the
+configuration. Repeated access does not repeat file I/O or parsing, and consumers
+cannot change the shared definitions accidentally. A file edit during that
+instance's lifetime does not change its already loaded schedules.
 
-The database provider exposes the same method but currently throws
-`ConfigurationException('Not Implemented')`.
+This favors predictable execution over immediate updates. To use a changed file,
+create a new provider and rebuild the execution plan; a long-running process
+needs an explicit reload or restart strategy. The current provider does not
+watch the file or refresh itself.
 
-For the fixtures and checks that cover these rules, see
-[Configuration tests](tests.md).
+## When requirements change
+
+The configuration source, input validation, and refresh policy are separate
+choices. Changing one does not require abandoning typed configuration objects
+or moving input handling into the adapter. The current requirements do not
+justify replacing the JSON loader and its declarative validation.
+
+- **Database provider:** useful when schedules need central administration or
+  updates through an application. It would return the same typed configuration
+  through the shared provider contract, while handling database availability and
+  consistency during loading. The database provider is not implemented yet.
+- **JSON Schema:** useful if other tools or applications outside PHP need a
+  shared, language-neutral definition for validating the JSON input. PHP object
+  mapping and scheduling-specific rules would still be needed. There is
+  currently no requirement for that shared schema.
+- **Explicit reload:** useful if a long-running process must adopt configuration
+  changes without restarting. A reload would validate a complete new snapshot
+  and coordinate replacement of the execution plan. Reading the file on every
+  access would not by itself solve that coordination problem. Reloading is not
+  implemented by the current provider.
+
+## Format and failure behavior
+
+Loading either returns the complete validated configuration or raises
+`ConfigurationException`. It does not skip invalid entries or repair invalid
+values silently. The caller decides how to report the failure and whether to
+retry.
+
+See the [JSON format](format.md) for fields, defaults, and validation rules, and
+[Cron syntax](cron.md) for accepted schedule expressions.

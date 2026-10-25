@@ -59,7 +59,6 @@ nav:
       - Cron syntax: configuration/cron.md
       - Concurrency: configuration/concurrency.md
       - Loading: configuration/loading.md
-      - Test cases: configuration/tests.md
   - Development:
       - Local environment: development/local-environment.md
       - Database: development/database.md
