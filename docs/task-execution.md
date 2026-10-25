@@ -96,7 +96,7 @@ without recreating Laravel's application event infrastructure.
 
 See [LaravelAdapter](adapter/laravel.md#select-due-tasks) for event selection,
 [Adapter limitations](adapter/index.md#current-implementation-limits) for current
-runtime limits, and [Log viewer](development/log-viewer.md) for inspecting the
+runtime limits, and [Adapter UI](development/adapter-ui.md) for inspecting the
 records locally.
 
 The future persistent coordinator has a separate [execution contract](execution/coordination.md)

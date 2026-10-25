@@ -67,4 +67,4 @@ implements reservation, ownership, completion, and recovery. Their rules are des
 See [Recovery scenarios](../execution/recovery.md) for expired overlap locks and crash
 windows, and [External effects](../execution/external-effects.md) for the limits
 of cancellation, idempotence, and fencing. The [verification plan](../execution/verification.md)
-separates schema checks, storage tests, and pending worker acceptance contracts.
+separates schema checks, storage tests, and worker recovery acceptance tests.

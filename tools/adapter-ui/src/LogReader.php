@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DevTools\LogViewer;
+namespace DevTools\AdapterUi;
 
 use RuntimeException;
 

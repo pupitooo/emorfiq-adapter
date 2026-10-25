@@ -65,8 +65,9 @@ nav:
   - Development:
       - Local environment: development/local-environment.md
       - Database: development/database.md
+      - Database queries: development/database-queries.md
       - Migrations: development/migrations.md
-      - Log viewer: development/log-viewer.md
+      - Adapter UI: development/adapter-ui.md
       - Documentation: development/documentation.md
 extra:
   social:

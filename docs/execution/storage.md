@@ -1,6 +1,6 @@
 # PostgreSQL storage
 
-`PostgresTaskRunStorage` implements `TaskRunStorage` using PDO and the versioned
+`PostgresTaskRunStorage` implements `TaskRunStorage` using Dibi over PDO PostgreSQL and the versioned
 `task_runs` schema. `ExecutionCoordinator` delegates storage operations to it.
 See [Coordination](coordination.md) for the lifecycle contract and
 [Service wiring](../configuration/services.md) for connection configuration.
@@ -48,8 +48,11 @@ tables and migration history are untouched.
 
 The suite covers snapshots, both independent protections, owner checks, expiry,
 late completion, rollback, commit failure classification, and concurrent claims.
+It also checks special characters in stored parameters and precise instants with
+timezone offsets.
 Race tests use separate PHP workers and PostgreSQL lock/commit barriers. An
 isolated SQL clock supplies shared controlled time through the test schema's
 `search_path`; production uses PostgreSQL's built-in `clock_timestamp()`.
-Lost acknowledgement is injected after a real commit. The separate worker-crash
-acceptance harness remains pending; see [Verification](verification.md).
+Lost acknowledgement is injected after a real commit. The separate recovery
+acceptance suite covers the Laravel runner, worker crashes, and receiver probes;
+see [Verification](verification.md).

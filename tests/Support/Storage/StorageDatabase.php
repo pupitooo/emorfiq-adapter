@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Support\Storage;
 
+use App\Database\PostgresConnectionFactory;
 use App\Scheduler\Infrastructure\Database\PostgresTaskRunStorage;
 use LogicException;
 use PDO;
@@ -30,7 +31,7 @@ final readonly class StorageDatabase
             $this->close();
             throw $failure;
         }
-        $this->storage = new PostgresTaskRunStorage($this->connection);
+        $this->storage = new PostgresTaskRunStorage(PostgresConnectionFactory::wrap($this->connection));
     }
 
     /**

@@ -30,6 +30,9 @@ final readonly class RecoveryAssertions
         return $claim;
     }
 
+    /**
+     * @throws \Exception
+     */
     public static function onlyRun(RecoveryHarness $harness, string $schedule): RunRecord
     {
         $runs = $harness->runs($schedule);

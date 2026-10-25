@@ -4,32 +4,35 @@ declare(strict_types=1);
 
 namespace Tests\Contract\Recovery;
 
-use Closure;
 use Tests\Support\Recovery\ExecutionFault;
 use Tests\Support\Recovery\RecoveryAssertions as A;
+use Tests\Support\Recovery\RecoveryCase;
 use Tests\Support\Recovery\RecoveryHarness;
 
 final readonly class ExecutionContractTest
 {
     /**
-     * @return list<Closure(RecoveryHarness): void>
+     * @return list<RecoveryCase>
      */
     public function cases(): array
     {
         return [
-            $this->commitsReservationBeforeResolvingAndRunningTask(...),
-            $this->recordsLateCompletionWithoutRenewingLock(...),
-            $this->persistsTaskFailureAndReleasesActiveReservation(...),
-            $this->neverResolvesTaskAfterLosingClaim(...),
-            $this->neverInvokesTaskAfterReservationRollback(...),
-            $this->neverInvokesTaskAfterLosingCommitAcknowledgement(...),
-            $this->recoversCrashBeforeTaskInvocationWithoutRetry(...),
-            $this->recoversCrashWithPartialEffectsWithoutUndoingThem(...),
-            $this->keepsCompletedEffectsWhenResultWasNeverRecorded(...),
-            $this->leavesOutcomeUnconfirmedWhenCompletionWriteFails(...),
+            new RecoveryCase($this->commitsReservationBeforeResolvingAndRunningTask(...)),
+            new RecoveryCase($this->recordsLateCompletionWithoutRenewingLock(...)),
+            new RecoveryCase($this->persistsTaskFailureAndReleasesActiveReservation(...)),
+            new RecoveryCase($this->neverResolvesTaskAfterLosingClaim(...)),
+            new RecoveryCase($this->neverInvokesTaskAfterReservationRollback(...)),
+            new RecoveryCase($this->neverInvokesTaskAfterLosingCommitAcknowledgement(...)),
+            new RecoveryCase($this->recoversCrashBeforeTaskInvocationWithoutRetry(...)),
+            new RecoveryCase($this->recoversCrashWithPartialEffectsWithoutUndoingThem(...)),
+            new RecoveryCase($this->keepsCompletedEffectsWhenResultWasNeverRecorded(...)),
+            new RecoveryCase($this->leavesOutcomeUnconfirmedWhenCompletionWriteFails(...)),
         ];
     }
 
+    /**
+     * @throws \Exception
+     */
     private function commitsReservationBeforeResolvingAndRunningTask(RecoveryHarness $h): void
     {
         $h->execute('sync', 0);
@@ -40,6 +43,9 @@ final readonly class ExecutionContractTest
         A::same('succeeded', A::onlyRun($h, 'sync')->status);
     }
 
+    /**
+     * @throws \Exception
+     */
     private function recordsLateCompletionWithoutRenewingLock(RecoveryHarness $h): void
     {
         $h->executeLongTask('sync', 0, 600);
@@ -53,6 +59,9 @@ final readonly class ExecutionContractTest
         A::same(2, $h->effectCount());
     }
 
+    /**
+     * @throws \Exception
+     */
     private function persistsTaskFailureAndReleasesActiveReservation(RecoveryHarness $h): void
     {
         $h->execute('sync', 0, ExecutionFault::TaskException);
@@ -63,6 +72,9 @@ final readonly class ExecutionContractTest
         A::claimed($h->claim('sync', 60));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function neverResolvesTaskAfterLosingClaim(RecoveryHarness $h): void
     {
         A::claimed($h->claim('sync', 0));
@@ -72,6 +84,9 @@ final readonly class ExecutionContractTest
         A::same(1, count($h->runs('sync')));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function neverInvokesTaskAfterReservationRollback(RecoveryHarness $h): void
     {
         $h->execute('sync', 0, ExecutionFault::ReservationRollback);
@@ -81,8 +96,12 @@ final readonly class ExecutionContractTest
         A::claimed($h->claim('sync', 0));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function neverInvokesTaskAfterLosingCommitAcknowledgement(RecoveryHarness $h): void
     {
+        A::claimed($h->claim('unrelated', 0));
         $h->execute('sync', 0, ExecutionFault::ReservationAcknowledgementLost);
         A::same(0, $h->taskResolutions());
         A::same(0, $h->taskStarts());
@@ -92,6 +111,9 @@ final readonly class ExecutionContractTest
         A::same(null, $h->claim('sync', 0));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function recoversCrashBeforeTaskInvocationWithoutRetry(RecoveryHarness $h): void
     {
         $h->execute('sync', 0, ExecutionFault::CrashBeforeTask);
@@ -104,6 +126,9 @@ final readonly class ExecutionContractTest
         A::same(0, $h->taskStarts());
     }
 
+    /**
+     * @throws \Exception
+     */
     private function recoversCrashWithPartialEffectsWithoutUndoingThem(RecoveryHarness $h): void
     {
         $h->execute('sync', 0, ExecutionFault::CrashDuringTask);
@@ -115,6 +140,9 @@ final readonly class ExecutionContractTest
         A::same(1, $h->effectCount());
     }
 
+    /**
+     * @throws \Exception
+     */
     private function keepsCompletedEffectsWhenResultWasNeverRecorded(RecoveryHarness $h): void
     {
         $h->execute('sync', 0, ExecutionFault::CrashAfterEffect);
@@ -126,6 +154,9 @@ final readonly class ExecutionContractTest
         A::same(2, $h->effectCount());
     }
 
+    /**
+     * @throws \Exception
+     */
     private function leavesOutcomeUnconfirmedWhenCompletionWriteFails(RecoveryHarness $h): void
     {
         $h->execute('sync', 0, ExecutionFault::CompletionUnavailable);

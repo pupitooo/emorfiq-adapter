@@ -7,6 +7,8 @@ namespace App\Scheduler\Infrastructure\Database;
 use App\Scheduler\Exception\MutexStorageException;
 use App\Scheduler\Exception\ReservationUnconfirmedException;
 use Closure;
+use Dibi\Connection;
+use Dibi\Exception;
 use PDO;
 use PDOException;
 use Throwable;
@@ -16,9 +18,17 @@ use Throwable;
  */
 final readonly class PostgresRunTransaction
 {
+    private PDO $resource;
+
     public function __construct(
-        private PDO $connection
-    ) {}
+        private Connection $connection
+    ) {
+        $resource = $connection->getDriver()->getResource();
+        if (! $resource instanceof PDO) {
+            throw new \LogicException('Task run storage requires PDO PostgreSQL driver.');
+        }
+        $this->resource = $resource;
+    }
 
     /**
      * @template T
@@ -28,11 +38,7 @@ final readonly class PostgresRunTransaction
      */
     public function run(Closure $operation): mixed
     {
-        try {
-            return $this->execute($operation, false);
-        } catch (ReservationUnconfirmedException $failure) {
-            throw new MutexStorageException('PostgreSQL task run commit is unconfirmed.', previous: $failure);
-        }
+        return $this->execute($operation, reservation: false);
     }
 
     /**
@@ -44,7 +50,7 @@ final readonly class PostgresRunTransaction
      */
     public function reserve(Closure $operation): mixed
     {
-        return $this->execute($operation, true);
+        return $this->execute($operation, reservation: true);
     }
 
     /**
@@ -52,7 +58,7 @@ final readonly class PostgresRunTransaction
      * @param Closure(): T $operation
      * @return T
      * @throws MutexStorageException
-     * @throws ReservationUnconfirmedException
+     * @throws ($reservation is true ? ReservationUnconfirmedException : void)
      */
     private function execute(Closure $operation, bool $reservation): mixed
     {
@@ -74,17 +80,12 @@ final readonly class PostgresRunTransaction
     private function begin(): void
     {
         try {
-            if ($this->connection->inTransaction()) {
+            if ($this->resource->inTransaction()) {
                 throw new MutexStorageException('Task run storage requires its own transaction.');
             }
-            $this->connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $this->connection->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
-            $this->connection->setAttribute(PDO::ATTR_STRINGIFY_FETCHES, false);
-            if (! $this->connection->beginTransaction()) {
-                throw new PDOException('PostgreSQL transaction did not begin.');
-            }
-            $this->connection->exec('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
-        } catch (PDOException $failure) {
+            $this->connection->begin();
+            $this->connection->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+        } catch (Exception|PDOException $failure) {
             $this->rollback();
             throw new MutexStorageException('Unable to begin PostgreSQL task run transaction.', previous: $failure);
         }
@@ -92,18 +93,15 @@ final readonly class PostgresRunTransaction
 
     /**
      * @throws MutexStorageException
-     * @throws ReservationUnconfirmedException
+     * @throws ($reservation is true ? ReservationUnconfirmedException : void)
      */
     private function commit(bool $reservation): void
     {
         try {
-            if (! $this->connection->commit()) {
-                throw new PDOException('PostgreSQL commit was not acknowledged.');
-            }
-        } catch (PDOException $failure) {
+            $this->connection->commit();
+        } catch (Exception|PDOException $failure) {
+            $rejected = $this->commitWasRejected($failure);
             $this->rollback();
-            // Server-reported constraint and transaction rollbacks are definitive failures.
-            $rejected = in_array(substr((string) $failure->getCode(), 0, 2), ['23', '40'], true);
             if ($reservation && ! $rejected) {
                 throw new ReservationUnconfirmedException(
                     'PostgreSQL reservation commit is unconfirmed.',
@@ -114,13 +112,22 @@ final readonly class PostgresRunTransaction
         }
     }
 
+    private function commitWasRejected(Throwable $failure): bool
+    {
+        // PDO's Dibi driver may expose a numeric driver code instead of SQLSTATE at commit.
+        $state = $this->resource->errorInfo()[0] ?? null;
+        $state = is_string($state) ? $state : (string) $failure->getCode();
+
+        return in_array(substr($state, 0, 2), ['23', '40'], true);
+    }
+
     private function rollback(): void
     {
         try {
-            if ($this->connection->inTransaction()) {
-                $this->connection->rollBack();
+            if ($this->resource->inTransaction()) {
+                $this->connection->rollback();
             }
-        } catch (PDOException) {
+        } catch (Exception|PDOException) {
             // Preserve the original failure, including an unknown commit outcome after connection loss.
         }
     }

@@ -64,8 +64,8 @@ Each element of `tasks` must be a JSON object:
 The same task class can have multiple schedules, each with its own unique `id`.
 
 See [Concurrency](concurrency.md) for examples, lock semantics, and the current
-implementation status. Lock storage is pending; executing protected due events
-currently fails explicitly through the mutex placeholders.
+implementation status. Protected events require PostgreSQL storage with the
+[database migrations](../development/migrations.md) applied.
 
 ### String validation
 

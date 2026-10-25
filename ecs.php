@@ -25,7 +25,7 @@ return ECSConfig::configure()
         __DIR__ . '/bin',
         __DIR__ . '/config',
         __DIR__ . '/tests',
-        __DIR__ . '/tools/log-viewer',
+        __DIR__ . '/tools/adapter-ui',
         __FILE__,
     ])
     ->withPreparedSets(perCs: true, common: true, cleanCode: true)

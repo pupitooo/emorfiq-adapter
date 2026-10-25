@@ -17,6 +17,7 @@ final readonly class PostgresTaskRunStorageTest
     public function run(StorageTestRunner $runner): void
     {
         $runner->run($this->storesCommittedSnapshotAndFreshTokens(...));
+        $runner->run($this->preservesSpecialCharactersAndPreciseInstants(...));
         $runner->run($this->combinesIndependentProtections(...));
         $runner->run($this->keepsCompletedOccurrencesReserved(...));
         $runner->run($this->recoversBeforeClaimAndRetainsHistory(...));
@@ -46,6 +47,28 @@ final readonly class PostgresTaskRunStorageTest
         $other = $this->claim($db, id: 'other');
         A::same(false, $claim->ownerToken === $other->ownerToken);
         A::same(false, $claim->id === $other->id);
+    }
+
+    /**
+     * @throws \Exception
+     */
+    private function preservesSpecialCharactersAndPreciseInstants(StorageDatabase $db): void
+    {
+        $id = "sync'\\%_; DROP TABLE task_runs; --";
+        $instant = new DateTimeImmutable('2026-10-26 15:30:00.123456+05:30');
+        $claim = $db->storage->reserve(
+            new ScheduleDefinition($id, "Task'\\%_", '* * * * *', onOneServer: true),
+            $instant,
+            'worker'
+        ) ?? throw new \LogicException('Expected claim.');
+        A::same($id, $db->row($claim->id)['schedule_id'] ?? null);
+        A::same('2026-10-26 10:00:00.123456+00', $db->row($claim->id)['scheduled_for'] ?? null);
+        A::same(true, $db->storage->hasOccurrence($id, $instant));
+        A::same(false, $db->storage->hasOccurrence("' OR true --", $instant));
+        $error = "Failure's detail \\ %_";
+        A::same(true, $db->storage->complete($claim, RunOutcome::Failed, $error));
+        A::same($error, $db->row($claim->id)['error_message'] ?? null);
+        A::same(false, $db->storage->hasLiveOverlap($id));
     }
 
     /**

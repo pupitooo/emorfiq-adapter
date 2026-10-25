@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Database\PostgresConnectionFactory;
 use App\Scheduler\Domain\RunClaim;
 use App\Scheduler\Domain\RunOutcome;
 use App\Scheduler\Domain\ScheduleDefinition;
@@ -36,7 +37,7 @@ try {
     }
     echo $pid . PHP_EOL;
     flush();
-    $storage = new PostgresTaskRunStorage($connection);
+    $storage = new PostgresTaskRunStorage(PostgresConnectionFactory::wrap($connection));
     $id = $input['id'] ?? 1;
     $token = $input['token'] ?? '11111111-1111-4111-8111-111111111111';
     if (! is_int($id) || ! is_string($token)) {

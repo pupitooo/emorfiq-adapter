@@ -4,17 +4,21 @@ declare(strict_types=1);
 
 namespace Tests\Support\Recovery;
 
-use LogicException;
+use Tests\Support\Storage\StorageDatabase;
 
 final readonly class RecoveryHarnessFactory
 {
     /**
-     * @throws LogicException
+     * @throws \Exception
      */
     public static function create(): RecoveryHarness
     {
-        throw new LogicException(
-            'Pending: connect RecoveryHarness to production PostgreSQL coordination and worker fault injection.',
-        );
+        $database = new StorageDatabase();
+        try {
+            return new PostgresRecoveryHarness($database);
+        } catch (\Throwable $failure) {
+            $database->close();
+            throw $failure;
+        }
     }
 }

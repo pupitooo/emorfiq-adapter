@@ -4,29 +4,32 @@ declare(strict_types=1);
 
 namespace Tests\Contract\Recovery;
 
-use Closure;
 use Tests\Support\Recovery\RecoveryAssertions as A;
+use Tests\Support\Recovery\RecoveryCase;
 use Tests\Support\Recovery\RecoveryHarness;
 
 final readonly class CoordinationContractTest
 {
     /**
-     * @return list<Closure(RecoveryHarness): void>
+     * @return list<RecoveryCase>
      */
     public function cases(): array
     {
         return [
-            $this->rejectsSameOccurrenceAfterTerminalStates(...),
-            $this->blocksLaterOccurrenceWhileProtectedRunIsActive(...),
-            $this->allowsLaterOccurrenceWithOnlySingleServerProtection(...),
-            $this->allowsSameOccurrenceAfterOverlapOnlyCompletion(...),
-            $this->allowsDuplicatesWhenBothProtectionsAreDisabled(...),
-            $this->keepsScheduleIdentifiersIndependent(...),
-            $this->choosesOneWinnerAcrossConcurrentClaims(...),
-            $this->assignsFreshOwnerTokens(...),
+            new RecoveryCase($this->rejectsSameOccurrenceAfterTerminalStates(...)),
+            new RecoveryCase($this->blocksLaterOccurrenceWhileProtectedRunIsActive(...)),
+            new RecoveryCase($this->allowsLaterOccurrenceWithOnlySingleServerProtection(...)),
+            new RecoveryCase($this->allowsSameOccurrenceAfterOverlapOnlyCompletion(...)),
+            new RecoveryCase($this->allowsDuplicatesWhenBothProtectionsAreDisabled(...)),
+            new RecoveryCase($this->keepsScheduleIdentifiersIndependent(...)),
+            new RecoveryCase($this->choosesOneWinnerAcrossConcurrentClaims(...)),
+            new RecoveryCase($this->assignsFreshOwnerTokens(...)),
         ];
     }
 
+    /**
+     * @throws \Exception
+     */
     private function rejectsSameOccurrenceAfterTerminalStates(RecoveryHarness $h): void
     {
         foreach ([true, false] as $success) {
@@ -38,6 +41,9 @@ final readonly class CoordinationContractTest
         }
     }
 
+    /**
+     * @throws \Exception
+     */
     private function blocksLaterOccurrenceWhileProtectedRunIsActive(RecoveryHarness $h): void
     {
         A::claimed($h->claim('sync', 0));
@@ -46,6 +52,9 @@ final readonly class CoordinationContractTest
         A::same(1, count($h->runs('sync')));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function allowsLaterOccurrenceWithOnlySingleServerProtection(RecoveryHarness $h): void
     {
         $claim = A::claimed($h->claim('sync', 0, withoutOverlapping: false));
@@ -59,6 +68,9 @@ final readonly class CoordinationContractTest
         A::same(2, count($h->runs('sync')));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function allowsSameOccurrenceAfterOverlapOnlyCompletion(RecoveryHarness $h): void
     {
         $claim = A::claimed($h->claim('sync', 0, onOneServer: false));
@@ -66,6 +78,9 @@ final readonly class CoordinationContractTest
         A::claimed($h->claim('sync', 0, onOneServer: false));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function allowsDuplicatesWhenBothProtectionsAreDisabled(RecoveryHarness $h): void
     {
         A::claimed($h->claim('sync', 0, false, false));
@@ -73,6 +88,9 @@ final readonly class CoordinationContractTest
         A::same(2, count($h->runs('sync')));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function keepsScheduleIdentifiersIndependent(RecoveryHarness $h): void
     {
         A::claimed($h->claim('first', 0));
@@ -81,12 +99,18 @@ final readonly class CoordinationContractTest
         A::same(1, count($h->runs('second')));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function choosesOneWinnerAcrossConcurrentClaims(RecoveryHarness $h): void
     {
         A::same(1, count($h->raceClaims('sync', 0)));
         A::same(1, count($h->runs('sync')));
     }
 
+    /**
+     * @throws \Exception
+     */
     private function assignsFreshOwnerTokens(RecoveryHarness $h): void
     {
         $first = A::claimed($h->claim('first', 0));

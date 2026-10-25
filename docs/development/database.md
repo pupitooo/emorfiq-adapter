@@ -9,7 +9,7 @@ only the database tools without rebuilding PHP:
 docker compose up -d --wait postgres adminer
 ```
 
-PostgreSQL uses the `18.6-alpine` runtime from public ECR, UTC database and log
+PostgreSQL uses the official `postgres:18.6-alpine` image from Docker Hub, UTC database and log
 time zones, a health check, and persistent storage. Adminer uses a pinned
 `6.1.1-standalone` image and the `nette` theme.
 The UI is exposed directly on a loopback port in this project.
@@ -61,3 +61,5 @@ Connection registration and transaction ownership are described in
 
 Run `make test-storage` for isolated PostgreSQL storage tests. See
 [Storage tests](../execution/storage.md#storage-tests) for coverage and isolation.
+
+For application SQL, see [Database queries](database-queries.md).

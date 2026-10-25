@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Database;
 
+use Dibi\Connection;
+use Dibi\Exception;
 use PDO;
 use PDOException;
+use RuntimeException;
 use SensitiveParameter;
 
 final readonly class PostgresConnectionFactory
@@ -18,14 +21,64 @@ final readonly class PostgresConnectionFactory
     ) {}
 
     /**
+     * @throws RuntimeException
+     */
+    public static function fromEnvironment(): self
+    {
+        return new self(
+            self::environment('DATABASE_DSN'),
+            self::environment('DATABASE_USER'),
+            self::environment('DATABASE_PASSWORD'),
+        );
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function connect(): Connection
+    {
+        return new Connection([
+            'driver' => 'pdo',
+            'dsn' => $this->dsn,
+            'username' => $this->username,
+            'password' => $this->password,
+            'options' => [
+                PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::ATTR_STRINGIFY_FETCHES => false,
+            ],
+            'result' => [
+                'formatDateTime' => 'native',
+            ],
+        ]);
+    }
+
+    /**
+     * @throws Exception
      * @throws PDOException
      */
-    public function connect(): PDO
+    public static function wrap(PDO $connection): Connection
     {
-        return new PDO($this->dsn, $this->username, $this->password, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_EMULATE_PREPARES => false,
-            PDO::ATTR_STRINGIFY_FETCHES => false,
+        $connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
+
+        return new Connection([
+            'driver' => 'pdo',
+            'resource' => $connection,
+            'result' => [
+                'formatDateTime' => 'native',
+            ],
         ]);
+    }
+
+    /**
+     * @throws RuntimeException
+     */
+    private static function environment(string $key): string
+    {
+        $value = getenv($key);
+        if ($value === false || $value === '') {
+            throw new RuntimeException('Missing database connection setting: ' . $key);
+        }
+
+        return $value;
     }
 }

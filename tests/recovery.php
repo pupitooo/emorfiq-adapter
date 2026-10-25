@@ -22,7 +22,7 @@ foreach ([
     new ExternalEffectsContractTest(),
 ] as $suite) {
     foreach ($suite->cases() as $test) {
-        $name = $suite::class . '::' . new ReflectionFunction($test)->getName();
+        $name = $suite::class . '::' . $test->name;
         $total++;
         if ($list) {
             echo $name . PHP_EOL;
@@ -33,7 +33,7 @@ foreach ([
         $errors = [];
         try {
             $harness = RecoveryHarnessFactory::create();
-            $test($harness);
+            $test->run($harness);
         } catch (Throwable $error) {
             $errors[] = $error->getMessage();
         } finally {
@@ -42,6 +42,9 @@ foreach ([
             } catch (Throwable $error) {
                 $errors[] = 'Cleanup failed: ' . $error->getMessage();
             }
+            $harness = null;
+            // Dibi retains cyclic translator callbacks; release their PDO sessions between scenarios.
+            gc_collect_cycles();
         }
         if ($errors === []) {
             echo 'PASS ' . $name . PHP_EOL;

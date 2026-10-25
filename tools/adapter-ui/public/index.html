@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="cs">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#24283e">
+    <meta name="description" content="Konfigurace scheduleru, historie tasků a živé logy adaptéru.">
+    <title>Scheduler · emorfiq</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/assets/app.css">
+    <script src="/assets/app.js" type="module"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Přejít na obsah</a>
+<header class="site-header">
+    <div class="header-inner">
+        <a class="brand" href="/" aria-label="Emorfiq, úvodní stránka">
+            <svg viewBox="0 0 72 36" fill="none" aria-hidden="true"><path d="M36 18C22 2 3 2 3 18s19 16 33 0S69 2 69 18 50 34 36 18Z"/><path class="brand-accent" d="M3 18C3 2 22 2 36 18s33 16 33 0"/></svg>
+            <span>emorfiq<span class="brand-dot">.</span></span>
+        </a>
+        <span class="header-divider"></span><span class="product-name">Adapter</span>
+        <span class="environment"><span class="status-dot"></span> Lokální prostředí</span>
+    </div>
+</header>
+<main id="main" class="workspace">
+    <div class="intro"><div><p class="eyebrow">PŘEHLED ADAPTÉRU</p><h1>Scheduler</h1><p class="intro-note">Co se spouští. Jak to proběhlo. Co se zapsalo.</p></div><span class="read-only">Pouze pro čtení</span></div>
+    <nav class="tabs" role="tablist" aria-label="Přehled scheduleru">
+        <button id="tab-configuration" class="tab" role="tab" aria-selected="true" aria-controls="panel-configuration" tabindex="0"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 4-4 6 4 6m8-12 4 6-4 6m-3-14-2 16"/></svg>Konfigurace<span id="schedule-count" class="tab-count">—</span></button>
+        <button id="tab-history" class="tab" role="tab" aria-selected="false" aria-controls="panel-history" tabindex="-1"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8a7 7 0 1 1 0 5M3 3v5h5m2-2v5l3 2"/></svg>Historie tasků</button>
+        <button id="tab-logs" class="tab" role="tab" aria-selected="false" aria-controls="panel-logs" tabindex="-1"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3 5 4 4-4 4m7 1h7"/></svg>Logy</button>
+    </nav>
+    <noscript><p class="notice error">Pro načtení dat povolte JavaScript.</p></noscript>
+
+    <section id="panel-configuration" role="tabpanel" aria-labelledby="tab-configuration" tabindex="0">
+        <div class="section-heading"><div><h2>Plán spouštění</h2><p>Aktuální konfigurace pro následující spuštění scheduleru.</p></div><button id="refresh-configuration" class="button"><span aria-hidden="true">↻</span> Načíst znovu</button></div>
+        <p id="configuration-notice" class="notice" role="status">Načítání konfigurace…</p>
+        <div id="configuration-content" hidden>
+            <div class="metrics">
+                <div class="metric"><span class="metric-label">Naplánované tasky</span><strong id="metric-tasks">—</strong><span class="metric-note">Definice v JSON konfiguraci</span></div>
+                <div class="metric"><span class="metric-label">Ochrana souběhu</span><strong id="metric-overlap">—</strong><span class="metric-note">withoutOverlapping</span></div>
+                <div class="metric"><span class="metric-label">Jeden server</span><strong id="metric-single">—</strong><span class="metric-note">onOneServer</span></div>
+            </div>
+            <div class="configuration-grid">
+                <article class="card schedules-card"><div class="card-heading"><div><h3>Naplánované tasky</h3><p>Účinné nastavení včetně výchozích hodnot.</p></div><span class="label">SCHEDULES</span></div><div id="schedule-list" class="schedule-list"></div><div id="configuration-empty" class="empty-state" hidden><strong>Žádné naplánované tasky</strong><p>Konfigurace má prázdný seznam tasks.</p></div><div class="card-footer">Cron se vyhodnocuje v časovém pásmu každé definice.</div></article>
+                <article class="card source-card"><div class="card-heading"><div><h3>Zdrojová konfigurace</h3><p><code>config/scheduler.json</code></p></div><button id="copy-configuration" class="button button-small" aria-label="Kopírovat JSON konfiguraci">Kopírovat</button></div><div class="code-toolbar"><span><span class="file-dot"></span> scheduler.json</span><span id="configuration-version">JSON</span></div><pre id="configuration-json" class="json-source" tabindex="0" aria-label="Zdrojová JSON konfigurace"></pre><div class="card-footer"><span id="configuration-modified">—</span><span>JSON</span></div></article>
+            </div>
+            <p class="footnote">Konfigurace se načítá při každém spuštění scheduleru. Historie zachovává nastavení konkrétního běhu.</p>
+        </div>
+    </section>
+
+    <section id="panel-history" role="tabpanel" aria-labelledby="tab-history" tabindex="0" hidden>
+        <div class="section-heading"><div><h2>Historie tasků</h2><p>Uložené běhy, jejich stav a nastavení v okamžiku rezervace.</p></div><button id="refresh-history" class="button"><span aria-hidden="true">↻</span> Obnovit historii</button></div>
+        <form id="history-filters" class="card history-card">
+            <div class="history-toolbar"><div class="toolbar-title"><span class="status-dot muted"></span><strong id="history-total">Historie běhů</strong><span class="timezone-label">Časy v UTC</span></div><div class="filter-actions"><label class="compact-field">Souběh<select name="without_overlapping" aria-label="Filtrovat ochranu souběhu"><option value="">Vše</option><option value="true">Chráněný</option><option value="false">Bez ochrany</option></select></label><label class="compact-field">Jeden server<select name="on_one_server" aria-label="Filtrovat jeden server"><option value="">Vše</option><option value="true">Ano</option><option value="false">Ne</option></select></label><button id="reset-history" type="reset" class="text-button">Zrušit filtry</button><button type="submit" class="button button-primary button-small">Použít filtry</button></div></div>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="Historie tasků s filtry">
+                <table class="data-table history-table"><thead><tr>
+                    <th scope="col"><span class="column-title">ID běhu</span><input name="id" type="search" inputmode="numeric" placeholder="ID…" aria-label="Filtrovat ID běhu"></th>
+                    <th scope="col"><span class="column-title">Plán</span><input name="schedule_id" type="search" placeholder="Hledat plán…" aria-label="Filtrovat ID plánu"></th>
+                    <th scope="col"><span class="column-title">Task</span><input name="task_class" type="search" placeholder="Hledat třídu…" aria-label="Filtrovat třídu tasku"></th>
+                    <th scope="col"><span class="column-title">Stav</span><select name="status" aria-label="Filtrovat stav"><option value="">Všechny stavy</option><option value="in_progress">Probíhá</option><option value="succeeded">Úspěšný</option><option value="failed">Chyba</option><option value="abandoned">Opuštěný</option></select></th>
+                    <th scope="col"><span class="column-title">Naplánováno · UTC</span><div class="date-range"><input name="scheduled_from" type="datetime-local" aria-label="Naplánováno od (UTC)" title="Od včetně · UTC"><span>—</span><input name="scheduled_to" type="datetime-local" aria-label="Naplánováno do (UTC)" title="Do včetně · UTC"></div></th>
+                    <th scope="col"><span class="column-title">Začátek · UTC</span><input name="started_on" type="date" aria-label="Filtrovat datum začátku (UTC)"></th>
+                    <th scope="col"><span class="column-title">Dokončení · UTC</span><input name="finished_on" type="date" aria-label="Filtrovat datum dokončení (UTC)"></th>
+                    <th scope="col"><span class="column-title">Trvání</span><span class="column-note">Dokončené běhy</span></th>
+                </tr></thead><tbody id="history-rows"></tbody></table>
+            </div>
+            <div id="history-notice" class="empty-state" role="status"><strong>Načítání historie…</strong></div>
+            <div class="pagination"><span id="history-range">—</span><div><label class="page-size">Na stránku <select id="history-page-size" aria-label="Počet běhů na stránku"><option>25</option><option selected>50</option><option>100</option></select></label><span id="history-page">Strana 1 / 1</span><button id="history-previous" type="button" class="button button-small" aria-label="Předchozí stránka" disabled>←</button><button id="history-next" type="button" class="button button-small" aria-label="Další stránka" disabled>→</button></div></div>
+        </form>
+        <p class="footnote">Historie obsahuje rezervované běhy s ochranou souběhu nebo jednoho serveru. Tasky bez obou ochran se spouštějí bez záznamu v historii.</p>
+    </section>
+
+    <section id="panel-logs" role="tabpanel" aria-labelledby="tab-logs" tabindex="0" hidden>
+        <div class="section-heading"><div><h2>Logy adaptéru</h2><p>Obecný výpis zpráv napříč tasky a službami.</p></div><div class="stream-status" role="status"><span id="stream-dot" class="status-dot muted"></span><span id="stream-state">Připojování…</span></div></div>
+        <div class="card logs-card"><div class="logs-toolbar"><label class="search-field"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="8" r="5"/><path d="m12 12 5 5"/></svg><input id="log-search" type="search" placeholder="Hledat ve zprávách, kanálech a kontextu…" aria-label="Hledat v lozích"></label><select id="log-level" aria-label="Filtrovat úroveň logu"><option value="">Všechny úrovně</option><option>DEBUG</option><option>INFO</option><option>NOTICE</option><option>WARNING</option><option>ERROR</option><option>CRITICAL</option><option>ALERT</option><option>EMERGENCY</option></select><button id="toggle-stream" class="button button-small" aria-pressed="false">Pozastavit</button><button id="clear-logs" class="text-button">Vyčistit zobrazení</button></div>
+            <div id="log-scroll" class="log-scroll" tabindex="0" role="region" aria-label="Zprávy logu"><table class="data-table log-table"><thead><tr><th scope="col">Čas · UTC</th><th scope="col">Úroveň</th><th scope="col">Kanál</th><th scope="col">Zpráva</th></tr></thead><tbody id="log-rows"></tbody></table><div id="log-empty" class="empty-state"><span class="empty-symbol" aria-hidden="true">⌁</span><strong>Zatím žádné zprávy</strong><p>Nové záznamy se zobrazí automaticky.</p></div></div>
+            <div class="card-footer"><span id="log-count">0 záznamů</span><span>Posledních 200 přijatých záznamů · adapter.log</span></div>
+        </div>
+        <p class="footnote">Připojený stream potvrzuje příjem logů. Stav konkrétního tasku najdete v historii.</p>
+    </section>
+    <footer class="workspace-footer"><span><span class="footer-mark" aria-hidden="true">∞</span> emorfiq / adapter</span><span>Konfigurace. Běhy. Logy.</span></footer>
+</main>
+<dialog id="run-detail" aria-labelledby="run-detail-title"><div class="dialog-heading"><div><p class="eyebrow">DETAIL BĚHU</p><h2 id="run-detail-title">Běh</h2></div><form method="dialog"><button class="button button-small" aria-label="Zavřít detail">✕</button></form></div><div id="run-detail-content"></div></dialog>
+</body>
+</html>

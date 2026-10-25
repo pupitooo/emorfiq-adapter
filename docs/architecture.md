@@ -131,7 +131,7 @@ and [Scheduler JSON](configuration/format.md) for fields and validation.
 | Task contracts | `Task::run()` describes work; `TaskResolver::resolve()` retrieves an executable task. |
 | Task infrastructure | `SymfonyTaskResolver` adapts the compiled container to `TaskResolver`. `TaskExecutor` depends on the contract. |
 | Scheduler application | `TaskExecutor` resolves and executes tasks with PSR-3 lifecycle logging and preserves individual failures. |
-| Database infrastructure | `App\Database` creates independent PDO connections. Scheduler infrastructure owns task run SQL and coordination transactions. |
+| Database infrastructure | `App\Database` creates independent Dibi connections over PDO PostgreSQL. Scheduler infrastructure owns task run SQL and coordination transactions. |
 | Task execution | Concrete tasks depend on constructor-injected services such as PSR-3 `LoggerInterface`. |
 | Composition | `bin/run.php` and `config/services/` choose implementations and wire dependencies. |
 
@@ -154,8 +154,9 @@ reported task failures; infrastructure errors still abort immediately. See
 
 Protected events use `ExecutionCoordinator` and [PostgreSQL storage](execution/storage.md)
 for committed reservations, owner-checked completion, and expired-run recovery.
-Apply the database migrations before executing protected events. The full
-worker-crash acceptance harness remains pending.
+Apply the database migrations before executing protected events. The
+[recovery acceptance suite](execution/verification.md) exercises the production
+runner, worker crashes, and receiver boundaries.
 The container is compiled for each invocation; it is not cached between processes.
 
 `CrunzAdapter` implements the same adapter contract but currently throws
@@ -193,7 +194,7 @@ config/
   services.php                Imports service configuration
   services/
     logging.php               Shared Monolog logger and PSR-3 alias
-    database.php              Connection settings, PostgreSQL factory, and PDO
+    database.php              Connection settings, PostgreSQL factory, and Dibi
     scheduler.php             Storage selection, coordinator, and TaskExecutor
     scheduler-laravel.php     Illuminate mutex aliases and scheduler context
     tasks.php                 Task discovery and constructor autowiring

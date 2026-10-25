@@ -15,7 +15,7 @@ From the application directory (`src/` in the development workspace), run:
 make up
 ```
 
-Open the live task logs at **[http://localhost:8088](http://localhost:8088)**.
+Open the adapter UI at **[http://localhost:8088](http://localhost:8088)**.
 Run `make down` to stop the application. After changing source files, run
 `make up` again to rebuild it. See [Local environment](docs/development/local-environment.md)
 for ports, logs, and checks.
