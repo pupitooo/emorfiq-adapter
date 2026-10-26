@@ -16,7 +16,7 @@ Register services under `config/services/`; import new files from
 Enable autowiring per file with `$services->defaults()->autowire()`. Bind scalar
 arguments explicitly and use aliases to select interface implementations.
 
-See [Task services](../task-services.md) for adding tasks and their dependencies.
+See [Task services](../tasks/registration.md) for adding tasks and their dependencies.
 
 The scheduler entry point also requires `SERVER_ID`; see
 [Server identity](server-identity.md) for configuration and semantics.
@@ -38,4 +38,4 @@ Keep `Dibi\Connection` non-shared (`->share(false)`) so task and scheduler
 transactions use separate connections.
 
 See [Database](database.md) for local setup and
-[Mutex layers](../execution/mutex-layers.md) for scheduler integration.
+[Mutex layers](../mutex/layers.md) for scheduler integration.

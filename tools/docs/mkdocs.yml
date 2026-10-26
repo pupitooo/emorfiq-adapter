@@ -6,7 +6,7 @@ exclude_docs: |
   /CODING_STANDARDS.md
   /STRUCTURE_PROPOSAL.md
 not_in_nav: |
-  /execution/verification.md
+  /verification/recovery.md
 site_dir: /tmp/emorfiq-docs-site
 strict: true
 hooks:
@@ -51,19 +51,22 @@ nav:
       - Cron syntax: configuration/cron.md
       - Concurrency: configuration/concurrency.md
   - Tasks:
-      - Registration: task-services.md
-      - Dependency resolution: task-resolution.md
-      - Execution outcomes: task-execution.md
-  - Mutex layers: execution/mutex-layers.md
+      - Registration: tasks/registration.md
+      - Dependency resolution: tasks/dependency-resolution.md
+      - Execution outcomes: tasks/execution-outcomes.md
+  - Mutex:
+      - Layers and lifecycle: mutex/layers.md
+      - Design choices: mutex/design.md
+      - Possible extensions: mutex/extensions.md
   - Coordination:
-      - Admission and completion: execution/coordination.md
-      - History and locks: execution/history.md
-      - Storage transactions: execution/storage.md
+      - Contract: coordination/contract.md
+      - History and locks: coordination/history.md
+      - Storage transactions: coordination/storage.md
   - Failure and recovery:
-      - Recovery: execution/recovery.md
-      - External effects: execution/external-effects.md
+      - Recovery: failure-and-recovery/recovery.md
+      - External effects: failure-and-recovery/external-effects.md
   - Verification:
-      - Concurrency demo: development/concurrency-demo.md
+      - Concurrency demo: verification/concurrency-demo.md
   - Development:
       - Local environment: development/local-environment.md
       - Server identity: development/server-identity.md

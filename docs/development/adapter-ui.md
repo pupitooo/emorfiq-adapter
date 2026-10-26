@@ -37,7 +37,7 @@ currently stored protections separately from the run outcome.
 History includes executions with both protections disabled. Each admitted
 execution has its own row; skipped events are not recorded. Completed and
 abandoned rows remain visible, and their state is refreshed with
-**Obnovit historii**. See [History and locks](../execution/history.md).
+**Obnovit historii**. See [History and locks](../coordination/history.md).
 
 ## Locks
 
@@ -59,7 +59,7 @@ detail without leaving the lock list. **Obnovit zámky** refreshes the snapshot.
 A missing history link is displayed as **Historie smazána**. Deleting history
 preserves the lock. History detail also distinguishes a disabled protection
 from an enabled protection whose lock is no longer stored. See
-[History and locks](../execution/history.md) for lifecycle and retention rules.
+[History and locks](../coordination/history.md) for lifecycle and retention rules.
 
 ## Logs
 
@@ -74,7 +74,7 @@ inspect structured details. Filtering affects only the retained browser records.
 Pause/resume controls reception, and clearing the view does not alter the file.
 The stream connects while the log tab is active and reconnects automatically;
 returning to it loads the current tail. A connected stream confirms transport,
-not task success. See [Task execution](../task-execution.md) for lifecycle fields.
+not task success. See [Task execution](../tasks/execution-outcomes.md) for lifecycle fields.
 
 ## Tooling boundary
 

@@ -10,7 +10,7 @@ These diagrams expand the named blocks of the shared
 [Invocation cycle](index.md#invocation-cycle) for `LaravelAdapter`. They follow
 the same phase order and keep each task abstract: an available dependency whose
 only operation is `Task::run()`. Task acquisition is described in
-[Task resolution](../task-resolution.md).
+[Task resolution](../tasks/dependency-resolution.md).
 
 Each scheduled task is represented by an Illuminate callback event. The term
 **event** below refers to that scheduling-library object.
@@ -128,7 +128,7 @@ it does not receive Laravel's standard cache-backed mutex setup automatically.
 When `withoutOverlapping` is enabled, `filtersPass()` also checks for an existing
 lock. `event.run()` then attempts acquisition, covering a competing execution
 that starts between those checks.
-The [coordinated mutexes](../execution/mutex-layers.md) share one committed
+The [coordinated mutexes](../mutex/layers.md) share one committed
 reservation through `ExecutionCoordinator` and PostgreSQL storage. Storage
 failures take the infrastructure-failure path in **Handle task outcome**.
 
@@ -163,10 +163,10 @@ sequenceDiagram
 **Responsibility boundary:** task invocation and lifecycle logging belong to
 the application's `TaskExecutor`. They are independent of Artisan's
 `ScheduledTaskStarting`, `ScheduledTaskFinished` and `ScheduledTaskFailed` events;
-see the [execution boundary](../task-execution.md#integration-boundary).
+see the [execution boundary](../tasks/execution-outcomes.md#integration-boundary).
 
 The result leaves **Process due task** and enters **Handle task outcome**. See
-[Task execution](../task-execution.md) for lifecycle record fields and logging
+[Task execution](../tasks/execution-outcomes.md) for lifecycle record fields and logging
 details, including failures during task acquisition, which is abstracted out here.
 
 ## Handle task outcome
@@ -193,7 +193,7 @@ Artisan's runner.
 
 Plan construction and due-time selection failures also propagate before the
 event loop starts. The adapter performs no automatic retry or rollback.
-The [failure policy](../task-execution.md#failure-policy) documents process exit
+The [failure policy](../tasks/execution-outcomes.md#failure-policy) documents process exit
 status and the complete exception boundary.
 
 ## What does the library contribute?

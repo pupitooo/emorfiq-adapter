@@ -20,7 +20,7 @@ example. `config/services/tasks.php` registers these classes automatically.
 
 Each execution gets a fresh instance; do not rely on task properties retaining
 state between runs. Lifecycle logging is automatic; see
-[Task execution](task-execution.md) for log records and failure handling.
+[Task execution](execution-outcomes.md) for log records and failure handling.
 
 ## Dependencies
 
@@ -33,8 +33,8 @@ Declare services as typed constructor parameters:
 - **Interface parameter:** configure a service alias or explicit argument binding.
 - **Scalar parameter:** configure its value or provide a default.
 
-See [Task resolution](task-resolution.md) for dependency wiring.
-See [Service wiring](development/service-wiring.md) for configuration file ownership
+See [Task resolution](dependency-resolution.md) for dependency wiring.
+See [Service wiring](../development/service-wiring.md) for configuration file ownership
 and database connections.
 
 ## Schedule
@@ -54,5 +54,5 @@ Adjust `cron` or `timezone` to change timing; the default time zone is UTC.
 When renaming or moving a class, update every matching `task` value. JSON
 validation does not check task class existence.
 
-See [Scheduler JSON](configuration/format.md) and [Cron syntax](configuration/cron.md)
+See [Scheduler JSON](../configuration/format.md) and [Cron syntax](../configuration/cron.md)
 for available options.
