@@ -87,6 +87,12 @@ wrappers, so infrastructure failures do not masquerade as ordinary task failures
 
 ## Integration boundary
 
+Coordination covers the synchronous `Task::run()` call, including task resolution.
+If a task enqueues a job or starts a detached process and then returns, the
+scheduler records completion and releases its overlap lock while that work may
+still be running. See [Work that outlives the task call](../failure-and-recovery/external-effects.md#work-that-outlives-taskrun)
+for responsibility and possible integration changes.
+
 Lifecycle logging belongs to the application execution layer and uses its
 existing logger. It does not depend on Laravel's event dispatcher or the
 `ScheduledTaskStarting`, `ScheduledTaskFinished`, and `ScheduledTaskFailed`
@@ -94,13 +100,13 @@ events emitted by Artisan's scheduler command. Our own runner invokes
 `TaskExecutor` explicitly. This keeps the lifecycle available to another adapter
 without recreating Laravel's application event infrastructure.
 
-See [LaravelAdapter](adapter/laravel.md#select-due-tasks) for event selection,
-[Adapter limitations](adapter/index.md#current-implementation-limits) for current
-runtime limits, and [Adapter UI](development/adapter-ui.md) for inspecting the
+See [LaravelAdapter](../adapter/laravel.md#select-due-tasks) for event selection,
+[Adapter limitations](../adapter/index.md#current-implementation-limits) for current
+runtime limits, and [Adapter UI](../development/adapter-ui.md) for inspecting the
 records locally.
 
-The persistent coordinator has a separate [execution contract](execution/coordination.md)
-and [recovery design](execution/recovery.md). It records every admitted run in
-[history](execution/history.md), including unprotected executions. Its database state is distinct from
+The persistent coordinator has a separate [execution contract](../coordination/contract.md)
+and [recovery design](../failure-and-recovery/recovery.md). It records every admitted run in
+[history](../coordination/history.md), including unprotected executions. Its database state is distinct from
 the lifecycle log: a completed effect can still have an unconfirmed database
 outcome if the process or final write fails.

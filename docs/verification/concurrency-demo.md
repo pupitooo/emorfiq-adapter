@@ -25,7 +25,7 @@ See [Concurrency](../configuration/concurrency.md) for the lock semantics.
 
 ## Observe execution
 
-Apply [migrations](migrations.md) before starting the scheduler. Rebuild and start
+Apply [migrations](../development/migrations.md) before starting the scheduler. Rebuild and start
 the local environment with `make up`, then open the
 [adapter UI](http://localhost:8088/) to follow history, locks, and logs.
 Supercronic uses `overlapping` so each minute can invoke a new scheduler process
@@ -74,7 +74,7 @@ The history row initially stays `in_progress`. The next reservation attempt for
 and `abandoned_by` populated and `finished_at` empty. Every run that reaches this
 task follows that path; the newest row may still await recovery. Expiration alone
 does not update history, and stopping the scheduler delays recovery until it runs
-again. See [Recovery scenarios](../execution/recovery.md) for the transition rules.
+again. See [Recovery scenarios](../failure-and-recovery/recovery.md) for the transition rules.
 
 ## Observe late success after abandonment
 
@@ -97,6 +97,6 @@ the newer run's lock. The UI uses `succeeded` for successful completion.
 
 The intermediate state requires another reservation attempt during the wait;
 running the task once or stopping the scheduler before recovery only demonstrates
-late success after expiration. See [Long tasks without renewal](../execution/recovery.md#long-tasks-without-renewal)
+late success after expiration. See [Long tasks without renewal](../failure-and-recovery/recovery.md#long-tasks-without-renewal)
 for the full lifecycle. The later `worker-crash` task cannot undo this success,
 because completion has already been persisted before that task starts.

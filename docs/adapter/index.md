@@ -32,11 +32,11 @@ scheduler-provided mechanisms and application-owned orchestration:
 | **[Build execution plan](laravel.md#build-execution-plan)** | The adapter owns configuration-to-event mapping; the scheduler supplies its plan and callback APIs. Configuration loading belongs to the application; see [Configuration design](../configuration/loading.md). |
 | **[Select due tasks](laravel.md#select-due-tasks)** | Delegate cron, time-zone and due-time evaluation to the scheduler. The adapter calls selection and processes the results in configuration order. See [cron rules](../configuration/cron.md). |
 | **[Process due task](laravel.md#process-due-task)** | The adapter orchestrates checks; the scheduler supplies filter, mutex-gate and callback mechanics. The application supplies [lock services](../configuration/concurrency.md#implementation-status), and its executor invokes `Task::run()`. |
-| **[Handle task outcome](laravel.md#handle-task-outcome)** | The application owns lifecycle logging, task exception translation and the continue-or-abort policy. This uses our runner's [failure handling](../task-execution.md#failure-policy), rather than delegating it to the scheduler's CLI runner. |
+| **[Handle task outcome](laravel.md#handle-task-outcome)** | The application owns lifecycle logging, task exception translation and the continue-or-abort policy. This uses our runner's [failure handling](../tasks/execution-outcomes.md#failure-policy), rather than delegating it to the scheduler's CLI runner. |
 
 The diagram starts with the adapter's dependencies already supplied. Each task
 is treated as an available dependency exposing `Task::run()`; its acquisition is covered in
-[Task resolution](../task-resolution.md).
+[Task resolution](../tasks/dependency-resolution.md).
 
 ## Invocation trigger
 
@@ -107,7 +107,7 @@ common lifecycle intended for that integration as well.
   fixes are not automatically adopted by our loop (`LaravelAdapter::runEvents()`).
   Laravel's full application context and
   Artisan task events are outside the current integration; see the
-  [execution boundary](../task-execution.md#integration-boundary).
+  [execution boundary](../tasks/execution-outcomes.md#integration-boundary).
 - **A minimal task protocol.** `Task::run(): void` communicates completion by
   returning or throwing. Structured results, progress, cooperative cancellation
   and workflow dependencies have no common protocol here. Adding such a protocol
@@ -137,14 +137,14 @@ functionality ourselves.
 - **Retry and catch-up policies:** define retry limits, backoff and handling of
   missed occurrences as explicit execution policies. The current recovery design
   does not retry abandoned work. Durable history alone cannot guarantee business
-  effects happen exactly once; see [external effects](../execution/external-effects.md).
+  effects happen exactly once; see [external effects](../failure-and-recovery/external-effects.md).
 - **Shared queue and workers:** both adapters could submit task and occurrence
   identifiers through one dispatch contract. Workers would resolve tasks and call
   `TaskExecutor`, with concurrency controlled by the worker count. A queue system
   could supply retries, backoff and execution timeouts independently of the
   scheduling library. Define ordering, failure and cancellation semantics, and
   consider renewal if long tasks must retain their overlap lock; see
-  [long-task limits](../execution/recovery.md#long-tasks-without-renewal).
+  [long-task limits](../failure-and-recovery/recovery.md#long-tasks-without-renewal).
 - **Finer scheduling precision:** update both the trigger and runner if tasks
   need to be scheduled more frequently than once per minute.
 - **Additional integrations:** implement `CrunzAdapter`, alternative configuration

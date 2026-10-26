@@ -32,7 +32,7 @@ The migration creates:
 - `task_runs`: execution history and the original configuration snapshot.
 - `task_locks`: overlap locks and occurrence reservations, linked to history.
 
-See [Run history and locks](../execution/history.md) for the relationship,
+See [Run history and locks](../coordination/history.md) for the relationship,
 indexes, and retention behavior. History lifecycle states are `in_progress`,
 `succeeded`, `failed`, and `abandoned`. Recovery records `abandoned_at` and
 `abandoned_by` without setting `finished_at`; late completion retains that
@@ -41,8 +41,8 @@ deadlines. Application configuration and lifecycle validation remain in PHP.
 
 ## Runtime boundary
 
-The migration defines the schema; [PostgreSQL storage](../execution/storage.md)
+The migration defines the schema; [PostgreSQL storage](../coordination/storage.md)
 implements atomic acquisition, completion, and recovery. See
-[Coordination](../execution/coordination.md) for their contract and
-[Recovery](../execution/recovery.md) for crash windows. Test adaptation to the
+[Coordination](../coordination/contract.md) for their contract and
+[Recovery](../failure-and-recovery/recovery.md) for crash windows. Test adaptation to the
 split schema is deferred.

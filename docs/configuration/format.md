@@ -115,8 +115,8 @@ instantiation are not checked by the JSON parser.
 
 ## Task registration
 
-See [Task services](../task-services.md) for registration and dependencies,
-[Task resolution](../task-resolution.md) for service lookup, and
+See [Task services](../tasks/registration.md) for registration and dependencies,
+[Task resolution](../tasks/dependency-resolution.md) for service lookup, and
 [LaravelAdapter execution conditions](../adapter/laravel.md#execution-conditions)
 for when tasks run.
 

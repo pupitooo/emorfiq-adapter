@@ -41,10 +41,10 @@ Follow the topic links for details.
 | Prepare dependencies and start the adapter. | `run.php`<br>`services.php` | [Service wiring](development/service-wiring.md) |
 | Load and validate schedules into immutable configuration objects. | `InMemorySchedulerConfiguration.php`<br>`JsonConfigurationParser.php` | [Configuration design](configuration/loading.md), [JSON format](configuration/format.md) |
 | Map definitions to scheduler events, select due work, and run execution gates. | `LaravelAdapter.php`<br>`SchedulerApplication.php`<br>`Schedule.php` | [Adapter](adapter/index.md), [Laravel integration](adapter/laravel.md) |
-| Share one execution claim between scheduling gates and the callback; record the outcome. | `ScheduledExecution.php`<br>`ExecutionCoordinator.php`<br>`CoordinatedEventMutex.php`<br>`CoordinatedSchedulingMutex.php`<br>`EventExecutions.php` | [Mutex layers](execution/mutex-layers.md), [Coordination](execution/coordination.md) |
-| Persist history and requested locks through atomic database operations. | `PostgresTaskRunStorage.php`<br>`PostgresConnectionFactory.php` | [History and locks](execution/history.md), [Storage](execution/storage.md) |
-| Resolve task instances and their constructor dependencies. | `SymfonyTaskResolver.php` | [Task resolution](task-resolution.md) |
-| Invoke `Task::run()` with lifecycle logging and task failure handling. | `TaskExecutor.php` | [Task execution](task-execution.md), [Task services](task-services.md) |
+| Share one execution claim between scheduling gates and the callback; record the outcome. | `ScheduledExecution.php`<br>`ExecutionCoordinator.php`<br>`CoordinatedEventMutex.php`<br>`CoordinatedSchedulingMutex.php`<br>`EventExecutions.php` | [Mutex layers](mutex/layers.md), [Coordination](coordination/contract.md) |
+| Persist history and requested locks through atomic database operations. | `PostgresTaskRunStorage.php`<br>`PostgresConnectionFactory.php` | [History and locks](coordination/history.md), [Storage](coordination/storage.md) |
+| Resolve task instances and their constructor dependencies. | `SymfonyTaskResolver.php` | [Task resolution](tasks/dependency-resolution.md) |
+| Invoke `Task::run()` with lifecycle logging and task failure handling. | `TaskExecutor.php` | [Task execution](tasks/execution-outcomes.md), [Task services](tasks/registration.md) |
 
 ## How the parts can be replaced
 
@@ -78,7 +78,7 @@ collaborators instead of creating the concrete implementations themselves.
 For example, replacing PostgreSQL means implementing `TaskRunStorage` and changing
 its service registration and alias. Task classes and `ScheduledExecution` continue
 using the same contracts. The replacement must preserve the
-[coordination guarantees](execution/coordination.md), including atomic claims and
+[coordination guarantees](coordination/contract.md), including atomic claims and
 completion checked against the original owner.
 
 ## Directory layout

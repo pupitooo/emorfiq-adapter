@@ -25,7 +25,7 @@ without repeatedly checking the input format.
   framework. Providers and adapters meet at that shared model.
 
 Validation covers configuration data. Task service lookup and construction are
-separate responsibilities; see [Task resolution](../task-resolution.md).
+separate responsibilities; see [Task resolution](../tasks/dependency-resolution.md).
 
 ## Why use declarative validation
 

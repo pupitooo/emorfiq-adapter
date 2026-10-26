@@ -62,4 +62,4 @@ Connection registration and transaction ownership are described in
 [Service wiring](service-wiring.md#database-boundary).
 
 Run `make test-storage` for isolated PostgreSQL storage tests. See
-[Storage tests](../execution/storage.md#storage-tests) for coverage and isolation.
+[Storage tests](../coordination/storage.md#storage-tests) for coverage and isolation.

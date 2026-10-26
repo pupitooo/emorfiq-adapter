@@ -29,9 +29,9 @@ PHP does not load `.env` itself.
 
 `SERVER_ID` identifies the server performing recovery. It is passed as `claimedBy`
 when reserving execution and stored as `abandoned_by` when that reservation
-recovers an expired run. See [Recovery](../execution/recovery.md).
+recovers an expired run. See [Recovery](../failure-and-recovery/recovery.md).
 
 Each run has a separate database-generated `owner_token`. Completion and lock
 ownership use that token together with the run ID, so processes sharing
 `SERVER_ID` still have separate run ownership. See
-[History and locks](../execution/history.md).
+[History and locks](../coordination/history.md).

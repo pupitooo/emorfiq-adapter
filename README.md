@@ -26,7 +26,7 @@ make migrate
 - [Reset the database](docs/development/local-environment.md#reset-database-and-logs)
 - Ports, logs, and checks: [Local environment](docs/development/local-environment.md).
 - `SERVER_ID`: [Server identity](docs/development/server-identity.md).
-- Sample simulations, worker crash, and late completion: [Concurrency demo](docs/development/concurrency-demo.md).
+- Sample simulations, worker crash, and late completion: [Concurrency demo](docs/verification/concurrency-demo.md).
 
 ## Documentation
 
@@ -82,23 +82,26 @@ flowchart TD
 
 4. **Tasks**
 
-    - [Task services](docs/task-services.md) — Register tasks.
-    - [Dependency resolution](docs/task-resolution.md) — Resolve task dependencies.
-    - [Execution outcomes](docs/task-execution.md) — Handle task results and failures.
+    - [Task services](docs/tasks/registration.md) — Register tasks.
+    - [Dependency resolution](docs/tasks/dependency-resolution.md) — Resolve task dependencies.
+    - [Execution outcomes](docs/tasks/execution-outcomes.md) — Handle task results and failures.
 
-5. **[Mutex layers](docs/execution/mutex-layers.md)** — Separate scheduler gates,
-   application coordination, and persistence.
+5. **Mutex**
+
+    - [Layers and lifecycle](docs/mutex/layers.md) — Scheduler gates, coordination, and persistence.
+    - [Design choices](docs/mutex/design.md) — Benefits, limits, Laravel comparison, and storage alternatives.
+
 6. **Persistent coordination**
 
-    - [Admission and completion](docs/execution/coordination.md)
-    - [History and locks](docs/execution/history.md)
-    - [Storage transactions](docs/execution/storage.md)
+    - [Coordination contract](docs/coordination/contract.md) — Admission, outcomes, and allowed state transitions.
+    - [History and locks](docs/coordination/history.md)
+    - [Storage transactions](docs/coordination/storage.md)
 
 7. **Failure and recovery**
 
-    - [Recovery](docs/execution/recovery.md) — Crashes and expiration.
-    - [External effects](docs/execution/external-effects.md) — Idempotency and stale workers.
+    - [Recovery](docs/failure-and-recovery/recovery.md) — Crashes and expiration.
+    - [External effects](docs/failure-and-recovery/external-effects.md) — Idempotency and stale workers.
 
 8. **Verification**
 
-    - [Concurrency demo](docs/development/concurrency-demo.md)
+    - [Concurrency demo](docs/verification/concurrency-demo.md)

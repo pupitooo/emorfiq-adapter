@@ -2,8 +2,8 @@
 
 Recovery frees an expired overlap reservation so a later occurrence can run.
 It does not retry abandoned work or reverse its effects. The
-[PostgreSQL storage](storage.md) implements these transitions; see
-[coordination](coordination.md) for the contract.
+[PostgreSQL storage](../coordination/storage.md) implements these transitions; see
+[coordination](../coordination/contract.md) for the contract.
 
 ## Recovery before reservation
 
@@ -38,13 +38,15 @@ extension, not a correctness requirement for the next claim.
 With `onOneServer`, the abandoned occurrence remains reserved. A new 10:06
 occurrence may run, but 10:00 cannot be reclaimed. Automatic retry, catch-up, and
 retention that deletes occurrence locks are separate features. Deleting history
-does not release these locks; see [History and locks](history.md).
+does not release these locks; see [History and locks](../coordination/history.md).
 
 ## Long tasks without renewal
 
 The deadline is fixed when the run is reserved. There is no heartbeat, renewal
 supervisor, task cancellation signal, or automatic termination on expiry.
 A healthy task must normally finish within the configured overlap duration.
+Renewal and cancellation are possible extensions, with the additional protocol
+described in [Renewable leases and ownership loss](../mutex/extensions.md#renewable-leases-and-ownership-loss).
 
 ```mermaid
 sequenceDiagram

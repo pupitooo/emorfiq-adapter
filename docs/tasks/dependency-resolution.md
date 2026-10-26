@@ -50,7 +50,7 @@ instances are created only when their callbacks execute.
   binding. Scalar arguments need configured values unless a usable default
   exists. For example, `LoggerInterface` is aliased to the configured logger in
   `config/services/logging.php`. The same requirement applies to dependencies
-  of those services. See [Task services](task-services.md) for registration details.
+  of those services. See [Task services](registration.md) for registration details.
 - **Symfony DI constructs the complete object.** Autowiring connects registered
   services using constructor parameter types. When the task is requested, the
   container obtains its dependencies and injects them into a fresh task instance.
@@ -76,7 +76,7 @@ instances are created only when their callbacks execute.
 - **The executor runs the resolved task.** The resolver returns the ready task
   instance to `TaskExecutor`, which calls `Task::run()`. Scheduler invokes the
   callback; `TaskExecutor` performs the actual task invocation. Resolution and
-  execution errors follow the existing [task execution policy](task-execution.md).
+  execution errors follow the existing [task execution policy](execution-outcomes.md).
 
 ## Benefits and alternatives
 

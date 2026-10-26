@@ -29,7 +29,7 @@ Its current fixtures still target the previous two-migration schema; adapting
 them to the single migration and `task_locks` is pending. Application data and
 migration history must remain untouched by schema verification.
 
-The [storage suite](storage.md#storage-tests) exercises transition SQL and races
+The [storage suite](../coordination/storage.md#storage-tests) exercises transition SQL and races
 through production storage. Its database clock is controlled inside each isolated
 schema. It covers both commit orders for recovery and completion, waits crossing
 expiry, concurrent recovery/claims, rollback, and lost commit acknowledgement.
@@ -119,7 +119,7 @@ described above.
 
 ### Reservation and indexes
 
-See [scenario details](coordination.md). Suite: `CoordinationContractTest`.
+See [coordination contract](../coordination/contract.md). Suite: `CoordinationContractTest`.
 
 - `rejectsSameOccurrenceAfterTerminalStates`
 - `blocksLaterOccurrenceWhileProtectedRunIsActive`
@@ -132,7 +132,7 @@ See [scenario details](coordination.md). Suite: `CoordinationContractTest`.
 
 ### Recovery and retained history
 
-See [scenario details](recovery.md). Suite: `RecoveryContractTest`.
+See [scenario details](../failure-and-recovery/recovery.md). Suite: `RecoveryContractTest`.
 
 - `abandonsExpiredRunAndAllowsLaterOccurrence`
 - `recoversBeforeClaimingNextOccurrence`
@@ -145,7 +145,7 @@ See [scenario details](recovery.md). Suite: `RecoveryContractTest`.
 
 ### Completion and races
 
-See [scenario details](recovery.md#recovery-racing-with-completion). Suite: `OwnershipContractTest`.
+See [scenario details](../failure-and-recovery/recovery.md#recovery-racing-with-completion). Suite: `OwnershipContractTest`.
 
 - `acceptsCompletionAtDeadline`
 - `acceptsCompletionAfterDeadlineWithoutRecovery`
@@ -159,7 +159,7 @@ See [scenario details](recovery.md#recovery-racing-with-completion). Suite: `Own
 
 ### Runner and crash windows
 
-See [scenario details](recovery.md#crash-windows-and-uncertain-outcomes). Suite: `ExecutionContractTest`.
+See [scenario details](../failure-and-recovery/recovery.md#crash-windows-and-uncertain-outcomes). Suite: `ExecutionContractTest`.
 
 - `commitsReservationBeforeResolvingAndRunningTask`
 - `recordsLateCompletionWithoutRenewingLock`
@@ -174,7 +174,7 @@ See [scenario details](recovery.md#crash-windows-and-uncertain-outcomes). Suite:
 
 ### External effects and receiver boundaries
 
-See [scenario details](external-effects.md). Suite: `ExternalEffectsContractTest`.
+See [scenario details](../failure-and-recovery/external-effects.md). Suite: `ExternalEffectsContractTest`.
 
 - `demonstratesSurvivingWorkerCanActAfterAbandonment`
 - `cannotCancelAlreadySubmittedExternalRequest`

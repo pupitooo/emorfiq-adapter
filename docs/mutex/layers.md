@@ -5,6 +5,11 @@
 through `ExecutionMutex`, runs the task, and records its outcome. The coordinator
 delegates persistence to `TaskRunStorage`.
 
+The first version intentionally follows Laravel's admission policies, with
+application-owned coordination that can evolve as further requirements become
+clear. See [Design choices](design.md) for the current additions and
+[Possible extensions](extensions.md) for capabilities not yet implemented.
+
 ## Layer diagram
 
 ```mermaid
@@ -57,8 +62,8 @@ flowchart TB
 `ExecutionMutex` and `TaskRunStorage` expose no Illuminate types.
 `ExecutionCoordinator` currently translates calls directly to storage; atomic
 reservation, recovery, database time, and commit confirmation belong to the
-storage implementation. See [Coordination](coordination.md) for their contract
-and [Recovery](recovery.md) for state transitions.
+storage implementation. See [Coordination](../coordination/contract.md) for their contract
+and [Recovery](../failure-and-recovery/recovery.md) for state transitions.
 
 ## Follow one occurrence
 
@@ -184,5 +189,9 @@ Paths below are relative to the repository root (`src/` in the project workspace
 `tests/Integration/Scheduler/LaravelLockingTest.php` checks shared claims and
 execution gates. `tests/Integration/Scheduler/ExecutionLifecycleTest.php` checks
 outcomes, infrastructure failures, and stable occurrence time. Both use
-`RecordingExecutionMutex`. The [storage suite](storage.md#storage-tests) verifies
+`RecordingExecutionMutex`. The [storage suite](../coordination/storage.md#storage-tests) verifies
 PostgreSQL persistence and races.
+
+Continue with [Design choices](design.md) for the problems this solves,
+benefits and limits, the comparison with Laravel's default mutexes, and storage
+alternatives.

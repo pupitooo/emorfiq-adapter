@@ -10,7 +10,7 @@ use Exception;
  * Test port for production coordination, real database sessions, and worker fault injection.
  * Times are seconds relative to 2026-10-26 10:00:00 UTC; overlap locks last 300 seconds without renewal.
  * Each factory call must provide isolated storage and a shared controllable ownership clock.
- * See docs/execution/verification.md for barriers, observation, and receiver requirements.
+ * See docs/verification/recovery.md for barriers, observation, and receiver requirements.
  */
 interface RecoveryHarness
 {

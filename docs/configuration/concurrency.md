@@ -37,7 +37,7 @@ Both protections default to disabled.
 - Strings, floating-point numbers, explicit `null`, and unknown fields are rejected.
 
 Three additional demo schedules illustrate the individual protections and their
-combination. See [Manual concurrency testing](../development/concurrency-demo.md).
+combination. See [Manual concurrency testing](../verification/concurrency-demo.md).
 
 ## Overlapping runs
 
@@ -53,7 +53,7 @@ it. Set it longer than the expected maximum execution time: expiration can allow
 another run even while the original process is still running. It is not a task
 timeout and does not terminate the original execution.
 
-The database [run history](../execution/history.md) retains the expiration
+The database [run history](../coordination/history.md) retains the expiration
 deadline, completion time, and outcome. If recovery marks the run abandoned,
 the abandonment details remain recorded even if the original execution later
 succeeds or fails.
@@ -80,22 +80,22 @@ the database design has no execution-lock expiration and requires no renewal.
 ## Implementation status
 
 Parsing, typed definitions, Illuminate event mapping, runner checks, and
-[PostgreSQL storage](../execution/storage.md) are implemented. Protected events
+[PostgreSQL storage](../coordination/storage.md) are implemented. Protected events
 reserve runs through `ExecutionCoordinator` before resolving their tasks. Apply
 the [migrations](../development/migrations.md) before using these options.
 An event that is not due does not request a lock. With both protections disabled,
 the runner records a fresh history row and its outcome without acquiring locks.
-Apply the migration before running any task. See [History and locks](../execution/history.md).
+Apply the migration before running any task. See [History and locks](../coordination/history.md).
 
 See [LaravelAdapter execution conditions](../adapter/laravel.md#execution-conditions)
 for the current service boundary.
 
-## Persistent coordination design
+## Coordination contract
 
-The PostgreSQL target design keeps occurrence deduplication separate from active
-execution ownership. See [Execution coordination](../execution/coordination.md)
-and [Recovery scenarios](../execution/recovery.md). Those pages define future behavior;
-they do not change the implementation status above.
+See [Coordination contract](../coordination/contract.md) for the admission,
+completion, and recovery rules that scheduler adapters and storage implementations
+must preserve. [Recovery scenarios](../failure-and-recovery/recovery.md) explains how these
+rules apply to crashes, expired protection, and late completion.
 
 ## Scheduler references
 
@@ -109,5 +109,8 @@ as a separate capability requiring shared cache storage.
 accepts a Symfony Lock store per event. Its
 [event implementation](https://github.com/crunzphp/crunz/blob/master/src/Event.php)
 also supports refreshing locks while work is running. Renewal is a deferred
-extension here. Backend selection is not a JSON option; application service
+extension here; Laravel's general cache locks also support renewal with selected
+drivers, although its default scheduler does not perform it automatically. See
+[Renewable leases](../mutex/extensions.md#renewable-leases-and-ownership-loss).
+Backend selection is not a JSON option; application service
 configuration remains responsible for infrastructure dependencies.
